@@ -28,23 +28,29 @@ impl Board {
                     break;
                 }
                 'K' => {
-                    ensure!(board.white_king == 0, "notation had multiple white kings!");
-                    &mut board.white_king
+                    ensure!(
+                        board.pieces[Board::WHITE_KING as usize] == BB::empty(),
+                        "notation had multiple white kings!"
+                    );
+                    Board::WHITE_KING
                 }
                 'k' => {
-                    ensure!(board.black_king == 0, "notation had multiple black kings!");
-                    &mut board.black_king
+                    ensure!(
+                        board.pieces[Board::BLACK_KING as usize] == BB::empty(),
+                        "notation had multiple white kings!"
+                    );
+                    Board::BLACK_KING
                 }
-                'Q' => &mut board.white_queens,
-                'q' => &mut board.black_queens,
-                'R' => &mut board.white_rooks,
-                'r' => &mut board.black_rooks,
-                'B' => &mut board.white_bishops,
-                'b' => &mut board.black_bishops,
-                'N' => &mut board.white_knights,
-                'n' => &mut board.black_knights,
-                'P' => &mut board.white_pawns,
-                'p' => &mut board.black_pawns,
+                'Q' => Board::WHITE_QUEEN,
+                'q' => Board::BLACK_QUEEN,
+                'R' => Board::WHITE_ROOK,
+                'r' => Board::BLACK_ROOK,
+                'B' => Board::WHITE_BISHOP,
+                'b' => Board::BLACK_BISHOP,
+                'N' => Board::WHITE_KNIGHT,
+                'n' => Board::BLACK_KNIGHT,
+                'P' => Board::WHITE_PAWN,
+                'p' => Board::BLACK_PAWN,
                 x => {
                     bail!("invalid character: {}", x);
                 }
@@ -53,7 +59,7 @@ impl Board {
                 column <= 7,
                 "notation tried to place piece outside the board"
             );
-            *bitmap |= 1 << row * 8 + column;
+            board.pieces[bitmap as usize] |= 1 << row * 8 + column;
             column += 1;
         }
 
@@ -121,8 +127,8 @@ impl Board {
             Some('-') => {}
             Some(c) => {
                 if let Some(r) = iterator.next() {
-                    let idx = Self::postion_to_index(c, r).ok_or(anyhow!("invalid position"))?;
-                    board.en_passant = 1 << idx;
+                    let idx = Self::postion_to_square(c, r).ok_or(anyhow!("invalid position"))?;
+                    board.state = board.state.set_en_passant(idx);
                 } else {
                     bail!("missing characters")
                 }
@@ -135,7 +141,7 @@ impl Board {
         Ok(board)
     }
 
-    fn postion_to_index(column: char, row: char) -> Option<u8> {
+    fn postion_to_square(column: char, row: char) -> Option<Square> {
         if 'a' > column || 'h' < column {
             return None;
         }
@@ -147,6 +153,6 @@ impl Board {
         let row = row as u8 - b'1';
         let column = column as u8 - b'a';
 
-        return Some(row * 8 + column);
+        return Some(Square(row * 8 + column));
     }
 }

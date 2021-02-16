@@ -1,14 +1,14 @@
-#[macro_use]
-extern crate bitflags;
+#![allow(dead_code)]
 
 use ggez::{
+    conf::WindowMode,
     event::{self, EventHandler},
-    graphics::{self, Color, Image},
+    graphics::{self, Color, Image, Rect},
     Context, ContextBuilder, GameResult,
 };
 use std::{env, path};
 
-mod board;
+pub mod board;
 use board::Board;
 
 fn main() {
@@ -34,6 +34,7 @@ fn main() {
     //
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
+        .window_mode(WindowMode::default().resizable(true))
         .build()
         .expect("aieee, could not create ggez context!");
 
@@ -41,7 +42,7 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = Chess::new(&mut ctx, board);
+    let my_game = Chess::new(&mut ctx, dbg!(board));
 
     // Run!
     event::run(ctx, event_loop, my_game)
@@ -74,5 +75,19 @@ impl EventHandler for Chess {
 
         // Draw code here...
         graphics::present(ctx)
+    }
+
+    fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {
+        graphics::set_screen_coordinates(
+            ctx,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: width,
+                h: height,
+            },
+        )
+        .unwrap();
+        println!("resized!: {}, {}", width, height);
     }
 }

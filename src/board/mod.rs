@@ -1,55 +1,76 @@
 mod fen;
+//mod gen;
+mod bb;
+pub use bb::BB;
+mod extra_state;
 mod render;
+pub use extra_state::ExtraState;
 
-bitflags! {
-    struct ExtraState: u16{
-        const BLACK_MOVE = 0b1;
+use std::fmt::{self, Debug};
 
-        const WHITE_KING_CASTLE = 0b10;
-        const WHITE_QUEEN_CASTLE = 0b100;
+#[derive(Eq, PartialEq, Clone, Copy)]
+pub struct Square(pub u8);
 
-        const BLACK_KING_CASTLE = 0b1000;
-        const BLACK_QUEEN_CASTLE = 0b10000;
+impl Debug for Square {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let file = self.0 % 8;
+        let rank = self.0 / 8;
+        let file_name = ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
+        writeln!(f, "{}{}", file_name[file as usize], 8 - rank)
     }
 }
 
+struct Move {
+    from: u8,
+    to: u8,
+}
+
+#[derive(Eq, PartialEq)]
 pub struct Board {
-    white_king: u64,
-    white_queens: u64,
-    white_rooks: u64,
-    white_bishops: u64,
-    white_knights: u64,
-    white_pawns: u64,
+    pieces: [BB; 12],
 
-    black_king: u64,
-    black_queens: u64,
-    black_rooks: u64,
-    black_bishops: u64,
-    black_knights: u64,
-    black_pawns: u64,
-
-    en_passant: u64,
     state: ExtraState,
 }
 
 impl Board {
-    pub fn empty() -> Self {
-        Board {
-            white_king: 0,
-            white_queens: 0,
-            white_rooks: 0,
-            white_bishops: 0,
-            white_knights: 0,
-            white_pawns: 0,
+    const WHITE_KING: u8 = 0;
+    const WHITE_QUEEN: u8 = 1;
+    const WHITE_BISHOP: u8 = 2;
+    const WHITE_KNIGHT: u8 = 3;
+    const WHITE_ROOK: u8 = 4;
+    const WHITE_PAWN: u8 = 5;
 
-            black_king: 0,
-            black_queens: 0,
-            black_rooks: 0,
-            black_bishops: 0,
-            black_knights: 0,
-            black_pawns: 0,
-            en_passant: 0,
+    const BLACK_KING: u8 = 6;
+    const BLACK_QUEEN: u8 = 7;
+    const BLACK_BISHOP: u8 = 8;
+    const BLACK_KNIGHT: u8 = 9;
+    const BLACK_ROOK: u8 = 10;
+    const BLACK_PAWN: u8 = 11;
+
+    pub const fn empty() -> Self {
+        Board {
+            pieces: [BB::empty(); 12],
             state: ExtraState::empty(),
         }
+    }
+}
+
+impl Debug for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Board")
+            .field("white_king", &self.pieces[Board::WHITE_KING as usize])
+            .field("white_queen", &self.pieces[Board::WHITE_QUEEN as usize])
+            .field("white_bishop", &self.pieces[Board::WHITE_BISHOP as usize])
+            .field("white_knight", &self.pieces[Board::WHITE_KNIGHT as usize])
+            .field("white_rook", &self.pieces[Board::WHITE_ROOK as usize])
+            .field("white_pawn", &self.pieces[Board::WHITE_PAWN as usize])
+            .field("black_king", &self.pieces[Board::BLACK_KING as usize])
+            .field("black_queen", &self.pieces[Board::BLACK_QUEEN as usize])
+            .field("black_bishop", &self.pieces[Board::BLACK_BISHOP as usize])
+            .field("black_knight", &self.pieces[Board::BLACK_KNIGHT as usize])
+            .field("black_rook", &self.pieces[Board::BLACK_ROOK as usize])
+            .field("black_pawn", &self.pieces[Board::BLACK_PAWN as usize])
+            .field("state", &self.state)
+            .finish()
     }
 }

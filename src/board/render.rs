@@ -7,11 +7,11 @@ use ggez::{
 };
 
 fn color_black() -> Color {
-    Color::from_rgb(0x3c, 0x38, 0x36)
+    Color::from_rgb(0x66, 0x5c, 0x54)
 }
 
 fn color_white() -> Color {
-    Color::from_rgb(0xfb, 0xf1, 0xc7)
+    Color::from_rgb(0xbd, 0xae, 0x93)
 }
 
 fn piece_to_param(piece: u8, scale: impl Into<Vector2<f32>>, sprite: &Image) -> DrawParam {
@@ -65,11 +65,11 @@ impl Board {
             }
         }
 
-        let mut render_piece = |piece, map: u64| {
+        for piece in 0..12 {
             let param = piece_to_param(piece, [square_size, square_size], &sprite);
             for i in 0..8 {
                 for j in 0..8 {
-                    if map & (1 << j * 8 + i) != 0 {
+                    if self.pieces[piece as usize] & (1 << j * 8 + i) != BB::empty() {
                         let x = offset_x + square_size * i as f32;
                         let y = offset_y + square_size * j as f32;
 
@@ -77,22 +77,7 @@ impl Board {
                     }
                 }
             }
-            GameResult::Ok(())
-        };
-
-        render_piece(0, self.white_king)?;
-        render_piece(1, self.white_queens)?;
-        render_piece(2, self.white_bishops)?;
-        render_piece(3, self.white_knights)?;
-        render_piece(4, self.white_rooks)?;
-        render_piece(5, self.white_pawns)?;
-
-        render_piece(6, self.black_king)?;
-        render_piece(7, self.black_queens)?;
-        render_piece(8, self.black_bishops)?;
-        render_piece(9, self.black_knights)?;
-        render_piece(10, self.black_rooks)?;
-        render_piece(11, self.black_pawns)?;
+        }
 
         Ok(())
     }
