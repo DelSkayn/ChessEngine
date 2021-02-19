@@ -25,6 +25,7 @@ impl Debug for Square {
 #[derive(Debug)]
 pub struct Move {
     piece: u8,
+    promote: u8,
     from: u8,
     to: u8,
 }
@@ -52,19 +53,19 @@ pub struct Board {
 }
 
 impl Board {
-    const WHITE_KING: u8 = 0;
-    const WHITE_QUEEN: u8 = 1;
-    const WHITE_BISHOP: u8 = 2;
-    const WHITE_KNIGHT: u8 = 3;
-    const WHITE_ROOK: u8 = 4;
-    const WHITE_PAWN: u8 = 5;
+    const WHITE_KING: usize = 0;
+    const WHITE_QUEEN: usize = 1;
+    const WHITE_BISHOP: usize = 2;
+    const WHITE_KNIGHT: usize = 3;
+    const WHITE_ROOK: usize = 4;
+    const WHITE_PAWN: usize = 5;
 
-    const BLACK_KING: u8 = 6;
-    const BLACK_QUEEN: u8 = 7;
-    const BLACK_BISHOP: u8 = 8;
-    const BLACK_KNIGHT: u8 = 9;
-    const BLACK_ROOK: u8 = 10;
-    const BLACK_PAWN: u8 = 11;
+    const BLACK_KING: usize = 6;
+    const BLACK_QUEEN: usize = 7;
+    const BLACK_BISHOP: usize = 8;
+    const BLACK_KNIGHT: usize = 9;
+    const BLACK_ROOK: usize = 10;
+    const BLACK_PAWN: usize = 11;
 
     pub const fn empty() -> Self {
         Board {
@@ -89,8 +90,23 @@ impl Board {
         for i in 6..12 {
             self.pieces[i] &= !(1 << m.to);
         }
+        dbg!(m.from);
         self.pieces[m.piece as usize] &= !(1 << m.from);
-        self.pieces[m.piece as usize] |= 1 << m.to;
+        if m.promote != 0 {
+            self.pieces[m.promote as usize] |= 1 << m.to;
+        } else {
+            self.pieces[m.piece as usize] |= 1 << m.to;
+        }
+        //Casteling
+        if m.piece % 6 == 0 && (m.from as i8 - m.to as i8).abs() == 2 {
+            match m.to {
+                2 => self.pieces[Self::WHITE_ROOK] ^= 0b1001,
+                6 => self.pieces[Self::WHITE_ROOK] ^= 0b10100000,
+                58 => self.pieces[Self::BLACK_ROOK] ^= 0b10001 << 56,
+                62 => self.pieces[Self::BLACK_ROOK] ^= 0b101 << 61,
+                _ => panic!(),
+            }
+        }
         self
     }
 }
@@ -98,18 +114,18 @@ impl Board {
 impl Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Board")
-            .field("white_king", &self.pieces[Board::WHITE_KING as usize])
-            .field("white_queen", &self.pieces[Board::WHITE_QUEEN as usize])
-            .field("white_bishop", &self.pieces[Board::WHITE_BISHOP as usize])
-            .field("white_knight", &self.pieces[Board::WHITE_KNIGHT as usize])
-            .field("white_rook", &self.pieces[Board::WHITE_ROOK as usize])
-            .field("white_pawn", &self.pieces[Board::WHITE_PAWN as usize])
-            .field("black_king", &self.pieces[Board::BLACK_KING as usize])
-            .field("black_queen", &self.pieces[Board::BLACK_QUEEN as usize])
-            .field("black_bishop", &self.pieces[Board::BLACK_BISHOP as usize])
-            .field("black_knight", &self.pieces[Board::BLACK_KNIGHT as usize])
-            .field("black_rook", &self.pieces[Board::BLACK_ROOK as usize])
-            .field("black_pawn", &self.pieces[Board::BLACK_PAWN as usize])
+            .field("white_king", &self.pieces[Board::WHITE_KING])
+            .field("white_queen", &self.pieces[Board::WHITE_QUEEN])
+            .field("white_bishop", &self.pieces[Board::WHITE_BISHOP])
+            .field("white_knight", &self.pieces[Board::WHITE_KNIGHT])
+            .field("white_rook", &self.pieces[Board::WHITE_ROOK])
+            .field("white_pawn", &self.pieces[Board::WHITE_PAWN])
+            .field("black_king", &self.pieces[Board::BLACK_KING])
+            .field("black_queen", &self.pieces[Board::BLACK_QUEEN])
+            .field("black_bishop", &self.pieces[Board::BLACK_BISHOP])
+            .field("black_knight", &self.pieces[Board::BLACK_KNIGHT])
+            .field("black_rook", &self.pieces[Board::BLACK_ROOK])
+            .field("black_pawn", &self.pieces[Board::BLACK_PAWN])
             .field("state", &self.state)
             .finish()
     }

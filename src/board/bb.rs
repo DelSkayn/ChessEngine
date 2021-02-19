@@ -29,6 +29,12 @@ impl BB {
     pub const RANK_7: BB = BB(0xff << 48);
     pub const RANK_8: BB = BB(0xff << 56);
 
+    pub const B8: BB = BB(0x8000_0000_0000_0000);
+    pub const A1: BB = BB(1);
+
+    pub const WHITE_KING_CASTLE_MASK: BB = BB(0b1100000);
+    pub const WHITE_QUEEN_CASTLE_MASK: BB = BB(0b1110);
+
     pub const fn square(s: u8) -> Self {
         BB(1 << s)
     }
@@ -80,6 +86,10 @@ impl BB {
 
     pub fn iter(self) -> BBIter {
         BBIter(self)
+    }
+
+    pub fn iter_rev(self) -> BBIterRev {
+        BBIterRev(self)
     }
 }
 
@@ -239,6 +249,23 @@ impl Iterator for BBIter {
         }
 
         let idx = self.0 .0.trailing_zeros();
+        let res = idx as u8;
+        self.0 ^= BB::square(res);
+        Some(res)
+    }
+}
+
+pub struct BBIterRev(BB);
+
+impl Iterator for BBIterRev {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.0.none() {
+            return None;
+        }
+
+        let idx = 63 - self.0 .0.leading_zeros();
         let res = idx as u8;
         self.0 ^= BB::square(res);
         Some(res)

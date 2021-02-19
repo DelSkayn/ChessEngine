@@ -86,6 +86,7 @@ impl Board {
                         cnt == 0,
                         "invalid character '-', expected one of 'K','Q','k','q',' '"
                     );
+                    iterator.next();
                     break;
                 }
                 Some(' ') => {

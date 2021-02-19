@@ -34,7 +34,7 @@ fn main() {
     //
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
-        .window_mode(WindowMode::default().resizable(true))
+        //.window_mode(WindowMode::default().resizable(true))
         .build()
         .expect("aieee, could not create ggez context!");
 
@@ -70,15 +70,16 @@ impl Chess {
 
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        while timer::check_update_time(ctx, 4) {
+        while timer::check_update_time(ctx, 5) {
             if self.moves.is_empty() {
                 self.moves = self.move_gen.gen_moves(&self.start_board);
+                println!("moves: {}", self.moves.len());
+                dbg!(&self.moves);
                 self.board = self.start_board;
             } else {
                 self.board = self.start_board.make_move(self.moves.pop().unwrap());
             }
         }
-
         Ok(())
     }
 
@@ -99,7 +100,6 @@ impl EventHandler for Chess {
         _x: f32,
         _y: f32,
     ) {
-        self.board = self.board.flip();
     }
 
     fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {
