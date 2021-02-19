@@ -69,7 +69,7 @@ impl Board {
             let param = piece_to_param(piece, [square_size, square_size], &sprite);
             for p in self.pieces[piece as usize].iter() {
                 let i = p % 8;
-                let j = p / 8;
+                let j = 7 - p / 8;
                 let x = offset_x + square_size * i as f32;
                 let y = offset_y + square_size * j as f32;
                 graphics::draw(ctx, sprite, param.dest([x, y]))?;

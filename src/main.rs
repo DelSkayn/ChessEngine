@@ -9,7 +9,7 @@ use ggez::{
 use std::{env, path};
 
 pub mod board;
-use board::{Board, Move};
+use board::{Board, Move, MoveGenerator};
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -50,6 +50,7 @@ fn main() {
 
 struct Chess {
     moves: Vec<Move>,
+    move_gen: MoveGenerator,
     start_board: Board,
     board: Board,
     piece_sprite: Image,
@@ -58,6 +59,7 @@ struct Chess {
 impl Chess {
     pub fn new(ctx: &mut Context, board: Board) -> Chess {
         Chess {
+            move_gen: MoveGenerator::new(),
             moves: Vec::new(),
             start_board: board,
             board,
@@ -68,11 +70,13 @@ impl Chess {
 
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        while timer::check_update_time(ctx, 30) {
+        while timer::check_update_time(ctx, 4) {
             if self.moves.is_empty() {
-                self.moves = self.start_board.gen_moves();
+                self.moves = self.move_gen.gen_moves(&self.start_board);
+                self.board = self.start_board;
+            } else {
+                self.board = self.start_board.make_move(self.moves.pop().unwrap());
             }
-            self.board = self.start_board.make_move(self.moves.pop().unwrap());
         }
 
         Ok(())

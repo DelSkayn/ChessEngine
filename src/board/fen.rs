@@ -59,7 +59,7 @@ impl Board {
                 column <= 7,
                 "notation tried to place piece outside the board"
             );
-            board.pieces[bitmap as usize] |= 1 << row * 8 + column;
+            board.pieces[bitmap as usize] |= 1 << (7 - row) * 8 + column;
             column += 1;
         }
 

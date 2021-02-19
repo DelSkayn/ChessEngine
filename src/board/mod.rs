@@ -6,6 +6,7 @@ mod extra_state;
 mod render;
 pub use extra_state::ExtraState;
 mod gen;
+pub use gen::MoveGenerator;
 
 use std::fmt::{self, Debug};
 

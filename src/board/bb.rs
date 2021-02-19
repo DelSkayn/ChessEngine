@@ -11,23 +11,23 @@ use std::{
 pub struct BB(pub u64);
 
 impl BB {
-    pub const FILE_H: BB = BB(0x0101010101010101);
-    pub const FILE_G: BB = BB(0x0101010101010101 >> 1);
-    pub const FILE_F: BB = BB(0x0101010101010101 >> 2);
-    pub const FILE_E: BB = BB(0x0101010101010101 >> 3);
-    pub const FILE_D: BB = BB(0x0101010101010101 >> 4);
-    pub const FILE_C: BB = BB(0x0101010101010101 >> 5);
-    pub const FILE_B: BB = BB(0x0101010101010101 >> 6);
-    pub const FILE_A: BB = BB(0x0101010101010101 >> 7);
+    pub const FILE_A: BB = BB(0x0101010101010101);
+    pub const FILE_B: BB = BB(0x0101010101010101 << 1);
+    pub const FILE_C: BB = BB(0x0101010101010101 << 2);
+    pub const FILE_D: BB = BB(0x0101010101010101 << 3);
+    pub const FILE_E: BB = BB(0x0101010101010101 << 4);
+    pub const FILE_F: BB = BB(0x0101010101010101 << 5);
+    pub const FILE_G: BB = BB(0x0101010101010101 << 6);
+    pub const FILE_H: BB = BB(0x0101010101010101 << 7);
 
-    pub const RANK_8: BB = BB(0xff);
-    pub const RANK_7: BB = BB(0xff << 8);
-    pub const RANK_6: BB = BB(0xff << 16);
-    pub const RANK_5: BB = BB(0xff << 24);
-    pub const RANK_4: BB = BB(0xff << 32);
-    pub const RANK_3: BB = BB(0xff << 40);
-    pub const RANK_2: BB = BB(0xff << 48);
-    pub const RANK_1: BB = BB(0xff << 52);
+    pub const RANK_1: BB = BB(0xff);
+    pub const RANK_2: BB = BB(0xff << 8);
+    pub const RANK_3: BB = BB(0xff << 16);
+    pub const RANK_4: BB = BB(0xff << 24);
+    pub const RANK_5: BB = BB(0xff << 32);
+    pub const RANK_6: BB = BB(0xff << 40);
+    pub const RANK_7: BB = BB(0xff << 48);
+    pub const RANK_8: BB = BB(0xff << 56);
 
     pub const fn square(s: u8) -> Self {
         BB(1 << s)
@@ -86,14 +86,14 @@ impl BB {
 impl Debug for BB {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f)?;
-        writeln!(f, "   +-----------------+")?;
-        for j in 0..8 {
-            write!(f, "{}: | ", 8 - j)?;
+        writeln!(f, "   +----------------+")?;
+        for j in (0..8).rev() {
+            write!(f, "{}: |", 8 - j)?;
             for i in 0..8 {
                 if *self & (1u64 << j * 8 + i) != BB::empty() {
-                    write!(f, "1 ")?;
+                    write!(f, "\x1b[0;107m. \x1b[0m")?;
                 } else {
-                    write!(f, "0 ")?;
+                    write!(f, "\x1b[0;100m  \x1b[0m")?;
                 }
                 if i == 7 {
                     write!(f, "|")?;
@@ -101,8 +101,8 @@ impl Debug for BB {
             }
             writeln!(f)?;
         }
-        writeln!(f, "   +-----------------+")?;
-        writeln!(f, "     a b c d e f g h  ")?;
+        writeln!(f, "   +----------------+")?;
+        writeln!(f, "    a b c d e f g h  ")?;
 
         Ok(())
     }
