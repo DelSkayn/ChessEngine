@@ -2,14 +2,14 @@
 
 use ggez::{
     conf::WindowMode,
-    event::{self, EventHandler},
+    event::{self, EventHandler, MouseButton},
     graphics::{self, Color, Image, Rect},
-    Context, ContextBuilder, GameResult,
+    timer, Context, ContextBuilder, GameResult,
 };
 use std::{env, path};
 
 pub mod board;
-use board::Board;
+use board::{Board, Move};
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -49,6 +49,8 @@ fn main() {
 }
 
 struct Chess {
+    moves: Vec<Move>,
+    start_board: Board,
     board: Board,
     piece_sprite: Image,
 }
@@ -56,6 +58,8 @@ struct Chess {
 impl Chess {
     pub fn new(ctx: &mut Context, board: Board) -> Chess {
         Chess {
+            moves: Vec::new(),
+            start_board: board,
             board,
             piece_sprite: Image::new(ctx, "/pieces.png").unwrap(),
         }
@@ -63,7 +67,14 @@ impl Chess {
 }
 
 impl EventHandler for Chess {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        while timer::check_update_time(ctx, 30) {
+            if self.moves.is_empty() {
+                self.moves = self.start_board.gen_moves();
+            }
+            self.board = self.start_board.make_move(self.moves.pop().unwrap());
+        }
+
         Ok(())
     }
 
@@ -75,6 +86,16 @@ impl EventHandler for Chess {
 
         // Draw code here...
         graphics::present(ctx)
+    }
+
+    fn mouse_button_down_event(
+        &mut self,
+        _ctx: &mut Context,
+        _button: MouseButton,
+        _x: f32,
+        _y: f32,
+    ) {
+        self.board = self.board.flip();
     }
 
     fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {

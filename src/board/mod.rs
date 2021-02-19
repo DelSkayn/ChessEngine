@@ -5,6 +5,7 @@ pub use bb::BB;
 mod extra_state;
 mod render;
 pub use extra_state::ExtraState;
+mod gen;
 
 use std::fmt::{self, Debug};
 
@@ -20,12 +21,29 @@ impl Debug for Square {
     }
 }
 
-struct Move {
+#[derive(Debug)]
+pub struct Move {
+    piece: u8,
     from: u8,
     to: u8,
 }
+pub trait Player {
+    const MY_KING: u8;
+    const MY_QUEEN: u8;
+    const MY_BISHOP: u8;
+    const MY_KNIGHT: u8;
+    const MY_ROOK: u8;
+    const MY_PAWN: u8;
 
-#[derive(Eq, PartialEq)]
+    const OP_KING: u8;
+    const OP_QUEEN: u8;
+    const OP_BISHOP: u8;
+    const OP_KNIGHT: u8;
+    const OP_ROOK: u8;
+    const OP_PAWN: u8;
+}
+
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub struct Board {
     pieces: [BB; 12],
 
@@ -52,6 +70,27 @@ impl Board {
             pieces: [BB::empty(); 12],
             state: ExtraState::empty(),
         }
+    }
+
+    pub fn flip(mut self) -> Self {
+        for i in 0..12 {
+            self.pieces[i] = self.pieces[i].flip()
+        }
+        for i in 0..6 {
+            self.pieces[i] ^= self.pieces[i + 6];
+            self.pieces[i + 6] ^= self.pieces[i];
+            self.pieces[i] ^= self.pieces[i + 6];
+        }
+        return self;
+    }
+
+    pub fn make_move(mut self, m: Move) -> Self {
+        for i in 6..12 {
+            self.pieces[i] &= !(1 << m.to);
+        }
+        self.pieces[m.piece as usize] &= !(1 << m.from);
+        self.pieces[m.piece as usize] |= 1 << m.to;
+        self
     }
 }
 
