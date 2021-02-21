@@ -1,3 +1,4 @@
+use super::Square;
 use std::{
     fmt::{self, Debug},
     iter::Iterator,
@@ -7,7 +8,7 @@ use std::{
     },
 };
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy, Default)]
 pub struct BB(pub u64);
 
 impl BB {
@@ -35,8 +36,8 @@ impl BB {
     pub const WHITE_KING_CASTLE_MASK: BB = BB(0b1100000);
     pub const WHITE_QUEEN_CASTLE_MASK: BB = BB(0b1110);
 
-    pub const fn square(s: u8) -> Self {
-        BB(1 << s)
+    pub const fn square(s: Square) -> Self {
+        BB(1 << s.get())
     }
 
     #[inline]
@@ -84,12 +85,29 @@ impl BB {
         self.0 == 0
     }
 
+    #[inline]
+    pub fn count(self) -> u8 {
+        self.0.count_ones() as u8
+    }
+
     pub fn iter(self) -> BBIter {
         BBIter(self)
     }
 
     pub fn iter_rev(self) -> BBIterRev {
         BBIterRev(self)
+    }
+
+    pub fn first_piece(self) -> Square {
+        let res = self.0.trailing_zeros() as u8;
+        debug_assert!(res < 64);
+        Square(res)
+    }
+
+    pub fn last_piece(self) -> Square {
+        let res = self.0.leading_zeros() as u8;
+        debug_assert!(res < 64);
+        Square(63 - res)
     }
 }
 
@@ -241,15 +259,15 @@ impl Not for BB {
 pub struct BBIter(BB);
 
 impl Iterator for BBIter {
-    type Item = u8;
+    type Item = Square;
 
-    fn next(&mut self) -> Option<u8> {
+    fn next(&mut self) -> Option<Square> {
         if self.0.none() {
             return None;
         }
 
         let idx = self.0 .0.trailing_zeros();
-        let res = idx as u8;
+        let res = Square::new(idx as u8);
         self.0 ^= BB::square(res);
         Some(res)
     }
@@ -258,15 +276,15 @@ impl Iterator for BBIter {
 pub struct BBIterRev(BB);
 
 impl Iterator for BBIterRev {
-    type Item = u8;
+    type Item = Square;
 
-    fn next(&mut self) -> Option<u8> {
+    fn next(&mut self) -> Option<Square> {
         if self.0.none() {
             return None;
         }
 
         let idx = 63 - self.0 .0.leading_zeros();
-        let res = idx as u8;
+        let res = Square(idx as u8);
         self.0 ^= BB::square(res);
         Some(res)
     }

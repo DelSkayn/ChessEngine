@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
+use engine::{Board, Move, MoveGenerator};
 use ggez::{
-    conf::WindowMode,
     event::{self, EventHandler, MouseButton},
     graphics::{self, Color, Image, Rect},
     timer, Context, ContextBuilder, GameResult,
 };
 use std::{env, path};
 
-pub mod board;
-use board::{Board, Move, MoveGenerator};
+mod board;
+use board::draw_board;
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -72,7 +72,7 @@ impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, 5) {
             if self.moves.is_empty() {
-                self.moves = self.move_gen.gen_moves(&self.start_board);
+                self.move_gen.gen_moves(&self.start_board, &mut self.moves);
                 println!("moves: {}", self.moves.len());
                 dbg!(&self.moves);
                 self.board = self.start_board;
@@ -87,7 +87,7 @@ impl EventHandler for Chess {
         graphics::clear(ctx, Color::from_rgb(0x28, 0x28, 0x28));
 
         let coords = graphics::screen_coordinates(&ctx);
-        self.board.draw(ctx, coords, &self.piece_sprite)?;
+        draw_board(&self.board, ctx, coords, &self.piece_sprite)?;
 
         // Draw code here...
         graphics::present(ctx)
