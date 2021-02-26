@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use engine::{Board, Move, MoveGenerator};
+use engine::{Board, MoveGenerator};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let board =

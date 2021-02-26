@@ -153,15 +153,8 @@ impl Piece {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum Promote {
-    Queen,
-    Bishop,
-    Knight,
-    Rook,
-}
-
 impl Board {
+    /*
     const WHITE_KING: usize = 0;
     const WHITE_QUEEN: usize = 1;
     const WHITE_BISHOP: usize = 2;
@@ -175,6 +168,7 @@ impl Board {
     const BLACK_KNIGHT: usize = 9;
     const BLACK_ROOK: usize = 10;
     const BLACK_PAWN: usize = 11;
+    */
 
     pub const fn empty() -> Self {
         Board {
@@ -192,6 +186,7 @@ impl Board {
             self.pieces[i + 6] ^= self.pieces[i];
             self.pieces[i] ^= self.pieces[i + 6];
         }
+        self.state = self.state.flip();
         return self;
     }
 
@@ -242,18 +237,18 @@ impl IndexMut<Piece> for Board {
 impl Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Board")
-            .field("white_king", &self.pieces[Board::WHITE_KING])
-            .field("white_queen", &self.pieces[Board::WHITE_QUEEN])
-            .field("white_bishop", &self.pieces[Board::WHITE_BISHOP])
-            .field("white_knight", &self.pieces[Board::WHITE_KNIGHT])
-            .field("white_rook", &self.pieces[Board::WHITE_ROOK])
-            .field("white_pawn", &self.pieces[Board::WHITE_PAWN])
-            .field("black_king", &self.pieces[Board::BLACK_KING])
-            .field("black_queen", &self.pieces[Board::BLACK_QUEEN])
-            .field("black_bishop", &self.pieces[Board::BLACK_BISHOP])
-            .field("black_knight", &self.pieces[Board::BLACK_KNIGHT])
-            .field("black_rook", &self.pieces[Board::BLACK_ROOK])
-            .field("black_pawn", &self.pieces[Board::BLACK_PAWN])
+            .field("white_king", &self[Piece::WhiteKing])
+            .field("white_queen", &self[Piece::WhiteQueen])
+            .field("white_bishop", &self[Piece::WhiteBishop])
+            .field("white_knight", &self[Piece::WhiteKnight])
+            .field("white_rook", &self[Piece::WhiteRook])
+            .field("white_pawn", &self[Piece::WhitePawn])
+            .field("black_king", &self[Piece::BlackKing])
+            .field("black_queen", &self[Piece::BlackQueen])
+            .field("black_bishop", &self[Piece::BlackBishop])
+            .field("black_knight", &self[Piece::BlackKnight])
+            .field("black_rook", &self[Piece::BlackRook])
+            .field("black_pawn", &self[Piece::BlackPawn])
             .field("state", &self.state)
             .finish()
     }

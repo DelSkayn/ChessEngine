@@ -58,9 +58,12 @@ struct Chess {
 
 impl Chess {
     pub fn new(ctx: &mut Context, board: Board) -> Chess {
+        let move_gen = MoveGenerator::new();
+        let mut moves = Vec::new();
+        move_gen.gen_moves(&board, &mut moves);
         Chess {
-            move_gen: MoveGenerator::new(),
-            moves: Vec::new(),
+            move_gen,
+            moves,
             start_board: board,
             board,
             piece_sprite: Image::new(ctx, "/pieces.png").unwrap(),
@@ -71,6 +74,7 @@ impl Chess {
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, 5) {
+            /*
             if self.moves.is_empty() {
                 self.move_gen.gen_moves(&self.start_board, &mut self.moves);
                 println!("moves: {}", self.moves.len());
@@ -79,6 +83,7 @@ impl EventHandler for Chess {
             } else {
                 self.board = self.start_board.make_move(self.moves.pop().unwrap());
             }
+            */
         }
         Ok(())
     }

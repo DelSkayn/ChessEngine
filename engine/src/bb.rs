@@ -116,7 +116,7 @@ impl Debug for BB {
         writeln!(f)?;
         writeln!(f, "   +----------------+")?;
         for j in (0..8).rev() {
-            write!(f, "{}: |", 8 - j)?;
+            write!(f, "{}: |", j + 1)?;
             for i in 0..8 {
                 if *self & (1u64 << j * 8 + i) != BB::empty() {
                     write!(f, "\x1b[0;107m. \x1b[0m")?;

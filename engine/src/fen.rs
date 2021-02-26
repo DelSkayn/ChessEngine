@@ -29,28 +29,28 @@ impl Board {
                 }
                 'K' => {
                     ensure!(
-                        board.pieces[Board::WHITE_KING as usize] == BB::empty(),
+                        board[Piece::WhiteKing].none(),
                         "notation had multiple white kings!"
                     );
-                    Board::WHITE_KING
+                    Piece::WhiteKing
                 }
                 'k' => {
                     ensure!(
-                        board.pieces[Board::BLACK_KING as usize] == BB::empty(),
+                        board[Piece::BlackKing].none(),
                         "notation had multiple white kings!"
                     );
-                    Board::BLACK_KING
+                    Piece::BlackKing
                 }
-                'Q' => Board::WHITE_QUEEN,
-                'q' => Board::BLACK_QUEEN,
-                'R' => Board::WHITE_ROOK,
-                'r' => Board::BLACK_ROOK,
-                'B' => Board::WHITE_BISHOP,
-                'b' => Board::BLACK_BISHOP,
-                'N' => Board::WHITE_KNIGHT,
-                'n' => Board::BLACK_KNIGHT,
-                'P' => Board::WHITE_PAWN,
-                'p' => Board::BLACK_PAWN,
+                'Q' => Piece::WhiteQueen,
+                'q' => Piece::BlackQueen,
+                'R' => Piece::WhiteRook,
+                'r' => Piece::BlackRook,
+                'B' => Piece::WhiteBishop,
+                'b' => Piece::BlackBishop,
+                'N' => Piece::WhiteKnight,
+                'n' => Piece::BlackKnight,
+                'P' => Piece::WhitePawn,
+                'p' => Piece::BlackPawn,
                 x => {
                     bail!("invalid character: {}", x);
                 }
@@ -59,7 +59,7 @@ impl Board {
                 column <= 7,
                 "notation tried to place piece outside the board"
             );
-            board.pieces[bitmap as usize] |= 1 << (7 - row) * 8 + column;
+            board[bitmap] |= 1 << (7 - row) * 8 + column;
             column += 1;
         }
 
