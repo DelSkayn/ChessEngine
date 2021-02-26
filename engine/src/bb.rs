@@ -36,6 +36,9 @@ impl BB {
     pub const WHITE_KING_CASTLE_MASK: BB = BB(0b1100000);
     pub const WHITE_QUEEN_CASTLE_MASK: BB = BB(0b1110);
 
+    pub const EMPTY: BB = BB(0);
+    pub const FULL: BB = BB(0xFFFF_FFFF_FFFF_FFFF);
+
     pub const fn square(s: Square) -> Self {
         BB(1 << s.get())
     }

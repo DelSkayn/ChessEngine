@@ -8,6 +8,7 @@ pub struct MoveGenerator {
     knight_attacks: BoardArray<BB>,
     king_attacks: BoardArray<BB>,
     ray_attacks: DirectionArray<BoardArray<BB>>,
+    between: BoardArray<BoardArray<BB>>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -56,6 +57,7 @@ impl MoveGenerator {
             knight_attacks: MoveGenerator::gen_knight_attacks(),
             king_attacks: MoveGenerator::gen_king_attacks(),
             ray_attacks: MoveGenerator::gen_ray_attackes(),
+            between: MoveGenerator::gen_between(),
         }
     }
 
@@ -113,6 +115,49 @@ impl MoveGenerator {
         res
     }
 
+    /*
+         *U64 inBetween(enumSquare sq1, enumSquare sq2) {
+       const U64 m1   = C64(-1);
+       const U64 a2a7 = C64(0x0001_0101_0101_0100);
+       const U64 b2g7 = C64(0x0040_2010_0804_0200);
+       const U64 h1b7 = C64(0x0002_0408_1020_4080); /* Thanks Dustin, g2b7 did not work for c1-a3 */
+       U64 btwn, line, rank, file;
+
+       btwn  = (m1 << sq1) ^ (m1 << sq2);
+       file  =   (sq2 & 7) - (sq1   & 7);
+       rank  =  ((sq2 | 7) -  sq1) >> 3 ;
+       line  =      (   (file  &  7) - 1) & a2a7; /* a2a7 if same file */
+       line += 2 * ((   (rank  &  7) - 1) >> 58); /* b1g1 if same rank */
+       line += (((rank - file) & 15) - 1) & b2g7; /* b2g7 if same diagonal */
+       line += (((rank + file) & 15) - 1) & h1b7; /* h1b7 if same antidiag */
+       line *= btwn & -btwn; /* mul acts like shift by smaller square */
+       return line & btwn;   /* return the bits on that line in-between */
+    }
+         */
+
+    fn gen_between() -> BoardArray<BoardArray<BB>> {
+        let mut res = BoardArray::new(BoardArray::new(BB::empty()));
+        const A2_A7: BB = BB(0x0001_0101_0101_0100);
+        const B2_G7: BB = BB(0x0040_2010_0804_0200);
+        const H1_B7: BB = BB(0x0002_0408_1020_4080);
+
+        for i in 0..64 {
+            for j in 0..64 {
+                let btwn = (BB::FULL << i) ^ (BB::FULL << j);
+                let file: u64 = ((j & 7) - (i & 7)) as u64;
+                let rank: u64 = (((j | 7) - i) >> 3) as u64;
+                let mut line = BB(((file & 7) - 1) as u64) & A2_A7; /* a2a7 if same file */
+                line.0 += 2 * (((rank & 7) - 1) >> 58); /* b1g1 if same rank */
+                line.0 += (((rank - file) & 15) - 1) & B2_G7.0; /* b2g7 if same diagonal */
+                line.0 += (((rank + file) & 15) - 1) & H1_B7.0; /* h1b7 if same antidiag */
+                line.0 *= btwn.0 & -(btwn.0 as i64) as u64; /* mul acts like shift by smaller square */
+                res[Square::new(i)][Square::new(j)] = dbg!(line & btwn);
+            }
+        }
+
+        res
+    }
+
     pub fn gen_moves(&self, b: &Board, res: &mut Vec<Move>) {
         let player_pieces = b[Piece::WhiteKing]
             | b[Piece::WhiteQueen]
@@ -120,6 +165,7 @@ impl MoveGenerator {
             | b[Piece::WhiteKnight]
             | b[Piece::WhiteRook]
             | b[Piece::WhitePawn];
+
         let opponent_pieces = b[Piece::BlackKing]
             | b[Piece::BlackQueen]
             | b[Piece::BlackBishop]
@@ -205,11 +251,25 @@ impl MoveGenerator {
 
     fn pinned(&self, b: &Board, player: BB, occupied: BB) -> BB {
         let king_square = b[Piece::WhiteKing].first_piece();
-        let mut pinners = self.xray_rook_attacks(king_square, player, occupied)
+        let rook_pinners = self.xray_rook_attacks(king_square, player, occupied)
             & (b[Piece::BlackRook] | b[Piece::BlackQueen]);
-        pinners |= self.xray_bishop_attacks(king_square, player, occupied)
+
+        let mut rook_pinned = BB::empty();
+        for p in rook_pinners.iter() {
+            let between = self.between[king_square][p];
+            rook_pinned |= player & between;
+        }
+
+        let bishop_pinners = self.xray_bishop_attacks(king_square, player, occupied)
             & (b[Piece::BlackBishop] | b[Piece::BlackQueen]);
-        pinners
+
+        let mut bishop_pinned = BB::empty();
+        for p in bishop_pinners.iter() {
+            let between = self.between[king_square][p];
+            bishop_pinned |= player & between;
+        }
+
+        rook_pinners | bishop_pinners
     }
 
     fn pawn_moves(
