@@ -31,16 +31,41 @@ impl Square {
         Square(v)
     }
 
+    pub fn from_name(name: &str) -> Option<Self> {
+        let mut chars = name.chars();
+        let file = chars.next()?;
+        let rank = chars.next()?;
+        if ('a'..='h').contains(&file) || ('A'..='H').contains(&file) {
+            if !('1'..='8').contains(&rank) {
+                return None;
+            }
+            let file = file.to_ascii_lowercase() as u8 - 'a' as u8;
+            let rank = rank as u8 - '1' as u8;
+            return Some(Self::from_file_rank(file, rank));
+        }
+        None
+    }
+
+    pub fn from_file_rank(file: u8, rank: u8) -> Self {
+        let res = (file & 7) | ((rank & 7) << 3);
+        debug_assert!(res < 64);
+        Square(res)
+    }
+
+    pub fn to_file_rank(self) -> (u8, u8) {
+        (self.file(), self.rank())
+    }
+
     pub const fn get(self) -> u8 {
         self.0
     }
 
     pub fn file(self) -> u8 {
-        self.0 % 8
+        self.0 & 7
     }
 
     pub fn rank(self) -> u8 {
-        self.0 / 8
+        self.0 >> 3
     }
 }
 
@@ -68,8 +93,8 @@ impl Debug for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let file = self.0 % 8;
         let rank = self.0 / 8;
-        let file_name = ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'];
-        write!(f, "{}{}", file_name[file as usize], 8 - rank)
+        let file_name = ('a' as u8 + file) as char;
+        write!(f, "{}{}", file_name, rank + 1)
     }
 }
 

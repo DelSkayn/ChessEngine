@@ -137,21 +137,53 @@ impl MoveGenerator {
 
     fn gen_between() -> BoardArray<BoardArray<BB>> {
         let mut res = BoardArray::new(BoardArray::new(BB::empty()));
-        const A2_A7: BB = BB(0x0001_0101_0101_0100);
-        const B2_G7: BB = BB(0x0040_2010_0804_0200);
-        const H1_B7: BB = BB(0x0002_0408_1020_4080);
 
         for i in 0..64 {
             for j in 0..64 {
-                let btwn = (BB::FULL << i) ^ (BB::FULL << j);
-                let file: u64 = ((j & 7) - (i & 7)) as u64;
-                let rank: u64 = (((j | 7) - i) >> 3) as u64;
-                let mut line = BB(((file & 7) - 1) as u64) & A2_A7; /* a2a7 if same file */
-                line.0 += 2 * (((rank & 7) - 1) >> 58); /* b1g1 if same rank */
-                line.0 += (((rank - file) & 15) - 1) & B2_G7.0; /* b2g7 if same diagonal */
-                line.0 += (((rank + file) & 15) - 1) & H1_B7.0; /* h1b7 if same antidiag */
-                line.0 *= btwn.0 & -(btwn.0 as i64) as u64; /* mul acts like shift by smaller square */
-                res[Square::new(i)][Square::new(j)] = dbg!(line & btwn);
+                let file_first = i & 7;
+                let rank_first = i >> 3;
+                let file_sec = j & 7;
+                let rank_sec = j >> 3;
+
+                let i = Square::new(i);
+                let j = Square::new(j);
+
+                if file_first == file_sec && rank_first == rank_sec {
+                    continue;
+                }
+
+                if file_first == file_sec {
+                    let min = rank_first.min(rank_sec);
+                    let max = rank_first.max(rank_sec);
+                    for r in min..=max {
+                        res[i][j] |= BB::square(Square::from_file_rank(file_first, r));
+                    }
+                }
+
+                if rank_first == rank_sec {
+                    let min = file_first.min(file_sec);
+                    let max = file_first.max(file_sec);
+                    for f in min..=max {
+                        res[i][j] |= BB::square(Square::from_file_rank(f, rank_first));
+                    }
+                }
+
+                if (rank_first as i8 - rank_sec as i8).abs()
+                    == (file_first as i8 - file_sec as i8).abs()
+                {
+                    let len = (rank_first as i8 - rank_sec as i8).abs() as u8;
+                    let rank_step = (rank_sec as i8 - rank_first as i8).signum();
+                    let file_step = (file_sec as i8 - file_first as i8).signum();
+
+                    for s in 0..=len as i8 {
+                        let rank = rank_first as i8 + rank_step * s;
+                        let file = file_first as i8 + file_step * s;
+                        res[i][j] |= BB::square(Square::from_file_rank(file as u8, rank as u8));
+                    }
+                }
+
+                res[i][j] &= !BB::square(i);
+                res[i][j] &= !BB::square(j);
             }
         }
 
@@ -176,7 +208,11 @@ impl MoveGenerator {
         let occupied = player_pieces | opponent_pieces;
 
         let attacked = self.attacked(b, occupied);
-        let pinned = self.pinned(b, player_pieces, occupied);
+        let (_rook_pinners, _bishop_pinners, rook_pinned, bishop_pinned) =
+            self.pinned(b, player_pieces, occupied);
+
+        let pinned = bishop_pinned | rook_pinned;
+
         dbg!(attacked);
         dbg!(pinned);
 
@@ -221,6 +257,16 @@ impl MoveGenerator {
         }
     }
 
+    /*
+    fn move_pinned(&self, b: &Board, rook_pinned: BB, bishop_pinned: BB, res: Vec<Move>) {
+        for p in rook_pinned.iter(){
+            if (b[Piece::WhiteRook] & p).any(){
+                for
+            }
+        }
+    }
+    */
+
     fn attacked(&self, b: &Board, occupied: BB) -> BB {
         let mut attacked = BB::empty();
 
@@ -249,7 +295,7 @@ impl MoveGenerator {
         attacked | pawn_attacks
     }
 
-    fn pinned(&self, b: &Board, player: BB, occupied: BB) -> BB {
+    fn pinned(&self, b: &Board, player: BB, occupied: BB) -> (BB, BB, BB, BB) {
         let king_square = b[Piece::WhiteKing].first_piece();
         let rook_pinners = self.xray_rook_attacks(king_square, player, occupied)
             & (b[Piece::BlackRook] | b[Piece::BlackQueen]);
@@ -269,7 +315,7 @@ impl MoveGenerator {
             bishop_pinned |= player & between;
         }
 
-        rook_pinners | bishop_pinners
+        (rook_pinners, bishop_pinners, rook_pinned, bishop_pinned)
     }
 
     fn pawn_moves(

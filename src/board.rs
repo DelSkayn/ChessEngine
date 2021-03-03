@@ -1,11 +1,71 @@
 use super::*;
 
-use engine::Piece;
+use engine::{Piece, Square, BB};
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect},
     mint::Vector2,
     Context, GameResult,
 };
+
+pub struct RenderBoard {
+    pub board: Board,
+    selected: Option<Square>,
+    dragging: Option<Piece>,
+    previous_move: Option<Move>,
+}
+
+impl RenderBoard {
+    pub fn new(board: Board) -> Self {
+        RenderBoard {
+            board,
+            selected: None,
+            dragging: None,
+            previous_move: None,
+        }
+    }
+
+    pub fn draw_board(&self, ctx: &mut Context, within: Rect, sprite: &Image) -> GameResult<()> {
+        let max_size = within.w.min(within.h);
+        let offset_x = (within.w - max_size).max(0.0) / 2.0;
+        let offset_y = (within.h - max_size).max(0.0) / 2.0;
+        let square_size = max_size / 8.0;
+
+        for i in 0..8 {
+            for j in 0..8 {
+                let x = offset_x + square_size * i as f32;
+                let y = offset_y + square_size * j as f32;
+                let color = if (i + j) % 2 == 0 {
+                    color_white()
+                } else {
+                    color_black()
+                };
+
+                let rect = Rect {
+                    x,
+                    y,
+                    w: square_size,
+                    h: square_size,
+                };
+
+                let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
+                graphics::draw(ctx, &rect, DrawParam::new())?;
+            }
+        }
+
+        for piece in 0..12 {
+            let param = piece_to_param(piece, [square_size, square_size], &sprite);
+            for p in self.board[Piece::from_u8(piece)].iter() & !BB:: {
+                let i = p.file();
+                let j = 7 - p.rank();
+                let x = offset_x + square_size * i as f32;
+                let y = offset_y + square_size * j as f32;
+                graphics::draw(ctx, sprite, param.dest([x, y]))?;
+            }
+        }
+
+        Ok(())
+    }
+}
 
 fn color_black() -> Color {
     Color::from_rgb(0x66, 0x5c, 0x54)
@@ -67,7 +127,7 @@ pub fn draw_board(b: &Board, ctx: &mut Context, within: Rect, sprite: &Image) ->
 
     for piece in 0..12 {
         let param = piece_to_param(piece, [square_size, square_size], &sprite);
-        for p in b[Piece::from_u8(piece)].iter() {
+        for p in (b[Piece::from_u8(piece)]).iter() {
             let i = p.file();
             let j = 7 - p.rank();
             let x = offset_x + square_size * i as f32;
