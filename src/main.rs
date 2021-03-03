@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use engine::{Board, Move, MoveGenerator};
 use ggez::{
     event::{self, EventHandler, MouseButton},
@@ -9,7 +7,7 @@ use ggez::{
 use std::{env, path};
 
 mod board;
-use board::draw_board;
+use board::RenderBoard;
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -49,23 +47,14 @@ fn main() {
 }
 
 struct Chess {
-    moves: Vec<Move>,
-    move_gen: MoveGenerator,
-    start_board: Board,
-    board: Board,
+    board: RenderBoard,
     piece_sprite: Image,
 }
 
 impl Chess {
     pub fn new(ctx: &mut Context, board: Board) -> Chess {
-        let move_gen = MoveGenerator::new();
-        let mut moves = Vec::new();
-        move_gen.gen_moves(&board, &mut moves);
         Chess {
-            move_gen,
-            moves,
-            start_board: board,
-            board,
+            board: RenderBoard::new(board),
             piece_sprite: Image::new(ctx, "/pieces.png").unwrap(),
         }
     }
@@ -89,22 +78,25 @@ impl EventHandler for Chess {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx, Color::from_rgb(0x28, 0x28, 0x28));
+        graphics::clear(ctx, Color::from_rgb_u32(0x282828));
 
         let coords = graphics::screen_coordinates(&ctx);
-        draw_board(&self.board, ctx, coords, &self.piece_sprite)?;
+        self.board.draw(ctx, coords, &self.piece_sprite)?;
 
         // Draw code here...
         graphics::present(ctx)
     }
 
-    fn mouse_button_down_event(
-        &mut self,
-        _ctx: &mut Context,
-        _button: MouseButton,
-        _x: f32,
-        _y: f32,
-    ) {
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.board.mouse_button_down_event(button, x, y);
+    }
+
+    fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+        self.board.mouse_button_up_event(button, x, y);
+    }
+
+    fn mouse_motion_event(&mut self, _ctx: &mut Context, _x: f32, _y: f32, _dx: f32, _dy: f32) {
+        self.board.mouse_motion_event();
     }
 
     fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {

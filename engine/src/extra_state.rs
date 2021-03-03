@@ -39,6 +39,10 @@ impl ExtraState {
         (self.0 & ExtraState::BLACK_MOVE.0) == 0
     }
 
+    pub fn make_move(self) -> Self {
+        Self(self.0 ^ ExtraState::BLACK_MOVE.0)
+    }
+
     #[inline]
     pub const fn set_en_passant(self, which: Square) -> Self {
         let res = self.0;

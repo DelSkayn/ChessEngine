@@ -67,6 +67,10 @@ impl Square {
     pub fn rank(self) -> u8 {
         self.0 >> 3
     }
+
+    pub fn flip(self) -> Self {
+        Square(63 - self.0)
+    }
 }
 
 impl Add<u8> for Square {
@@ -176,6 +180,10 @@ impl Piece {
             x => panic!("invalid number for piece: {}", x),
         }
     }
+
+    pub fn white(self) -> bool {
+        (self as u8) < 6
+    }
 }
 
 impl Board {
@@ -241,8 +249,24 @@ impl Board {
             }
             _ => todo!(),
         }
+        self.state = self.state.make_move();
 
         self
+    }
+
+    pub fn on(&self, square: Square) -> Option<Piece> {
+        let bb = BB::square(square);
+        for i in 0..12 {
+            let piece = Piece::from_u8(i);
+            if (self[piece] & bb).any() {
+                return Some(piece);
+            }
+        }
+        None
+    }
+
+    pub fn white_turn(&self) -> bool {
+        self.state.white_move()
     }
 }
 
