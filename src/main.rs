@@ -29,8 +29,6 @@ fn main() {
     };
 
     // Make a Context.
-    //
-    //
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
         //.window_mode(WindowMode::default().resizable(true))
@@ -79,19 +77,6 @@ impl EventHandler for Chess {
                 self.move_sound.play(ctx)?;
                 self.play_move = PlayedMove::Didnt
             }
-        }
-
-        while timer::check_update_time(ctx, 5) {
-            /*
-            if self.moves.is_empty() {
-                self.move_gen.gen_moves(&self.start_board, &mut self.moves);
-                println!("moves: {}", self.moves.len());
-                dbg!(&self.moves);
-                self.board = self.start_board;
-            } else {
-                self.board = self.start_board.make_move(self.moves.pop().unwrap());
-            }
-            */
         }
         Ok(())
     }

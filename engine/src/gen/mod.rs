@@ -115,26 +115,6 @@ impl MoveGenerator {
         res
     }
 
-    /*
-         *U64 inBetween(enumSquare sq1, enumSquare sq2) {
-       const U64 m1   = C64(-1);
-       const U64 a2a7 = C64(0x0001_0101_0101_0100);
-       const U64 b2g7 = C64(0x0040_2010_0804_0200);
-       const U64 h1b7 = C64(0x0002_0408_1020_4080); /* Thanks Dustin, g2b7 did not work for c1-a3 */
-       U64 btwn, line, rank, file;
-
-       btwn  = (m1 << sq1) ^ (m1 << sq2);
-       file  =   (sq2 & 7) - (sq1   & 7);
-       rank  =  ((sq2 | 7) -  sq1) >> 3 ;
-       line  =      (   (file  &  7) - 1) & a2a7; /* a2a7 if same file */
-       line += 2 * ((   (rank  &  7) - 1) >> 58); /* b1g1 if same rank */
-       line += (((rank - file) & 15) - 1) & b2g7; /* b2g7 if same diagonal */
-       line += (((rank + file) & 15) - 1) & h1b7; /* h1b7 if same antidiag */
-       line *= btwn & -btwn; /* mul acts like shift by smaller square */
-       return line & btwn;   /* return the bits on that line in-between */
-    }
-         */
-
     fn gen_between() -> BoardArray<BoardArray<BB>> {
         let mut res = BoardArray::new(BoardArray::new(BB::empty()));
 
@@ -214,7 +194,7 @@ impl MoveGenerator {
         let pinned = bishop_pinned | rook_pinned;
 
         if (b[Piece::WhiteKing] & attacked).any() {
-            self.gen_moves_check(res);
+            self.gen_moves_check(b, attacked, player_pieces, opponent_pieces, occupied, res);
             return;
         }
 
@@ -267,6 +247,165 @@ impl MoveGenerator {
             bishop_pinners,
             res,
         );
+    }
+
+    fn gen_moves_check(
+        &self,
+        b: &Board,
+        attacked: BB,
+        player_pieces: BB,
+        opponent_pieces: BB,
+        occupied: BB,
+        res: &mut Vec<Move>,
+    ) {
+        let king_square = b[Piece::WhiteKing].first_piece();
+
+        let checkers = (self.knight_attacks[king_square]
+            | self.rook_attacks(king_square, occupied)
+            | self.bishop_attacks(king_square, occupied))
+            & opponent_pieces;
+
+        let p = b[Piece::WhiteKing].first_piece();
+        let moves = self.king_attacks[p] & !player_pieces & !attacked;
+        for m in moves.iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: m,
+                piece: Piece::WhiteKing,
+            })
+        }
+
+        if dbg!(checkers.count()) > 1 {
+            return;
+        }
+
+        let checker = checkers.first_piece();
+
+        // All moves which take the checker
+        let checker_attacked_bishop = self.bishop_attacks(checker, occupied);
+        for p in (checker_attacked_bishop & b[Piece::WhiteBishop]).iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: checker,
+                piece: Piece::WhiteBishop,
+            });
+        }
+        for p in (checker_attacked_bishop & b[Piece::WhiteQueen]).iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: checker,
+                piece: Piece::WhiteQueen,
+            });
+        }
+
+        let checker_attacked_rook = self.rook_attacks(checker, occupied);
+        for p in (checker_attacked_rook & b[Piece::WhiteRook]).iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: checker,
+                piece: Piece::WhiteRook,
+            });
+        }
+        for p in (checker_attacked_rook & b[Piece::WhiteQueen]).iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: checker,
+                piece: Piece::WhiteQueen,
+            });
+        }
+
+        let checker_attacked_knight = self.knight_attacks[checker] & b[Piece::WhiteKnight];
+        for p in checker_attacked_knight.iter() {
+            res.push(Move::Simple {
+                from: p,
+                to: checker,
+                piece: Piece::WhiteKnight,
+            });
+        }
+
+        let pawn_attacks = (b[Piece::WhitePawn] << 7) & checkers;
+        for p in pawn_attacks.iter() {
+            res.push(Move::Simple {
+                from: p - 7,
+                to: p,
+                piece: Piece::WhiteKnight,
+            });
+        }
+        let pawn_attacks = (b[Piece::WhitePawn] << 9) & checkers;
+        for p in pawn_attacks.iter() {
+            res.push(Move::Simple {
+                from: p - 9,
+                to: p,
+                piece: Piece::WhiteKnight,
+            });
+        }
+
+        if (b[Piece::BlackKnight] & checkers).any() {
+            return;
+        }
+
+        // All blocking moves
+        let between = dbg!(self.between[checker][king_square]);
+
+        let pawn_blocks = (b[Piece::WhitePawn] << 8) & between;
+        for p in pawn_blocks.iter() {
+            res.push(Move::Simple {
+                from: p - 8,
+                to: p,
+                piece: Piece::WhitePawn,
+            });
+        }
+        let double_pawn_blocks = ((b[Piece::WhitePawn] & BB::RANK_2) << 16) & between;
+        for p in double_pawn_blocks.iter() {
+            res.push(Move::Simple {
+                from: p - 16,
+                to: p,
+                piece: Piece::WhitePawn,
+            });
+        }
+
+        for block in between.iter() {
+            let block_attacked_bishop = self.bishop_attacks(block, occupied);
+            for p in (block_attacked_bishop & b[Piece::WhiteBishop]).iter() {
+                res.push(Move::Simple {
+                    from: p,
+                    to: block,
+                    piece: Piece::WhiteBishop,
+                });
+            }
+            for p in dbg!(block_attacked_bishop & b[Piece::WhiteQueen]).iter() {
+                res.push(Move::Simple {
+                    from: p,
+                    to: block,
+                    piece: Piece::WhiteQueen,
+                });
+            }
+
+            let block_attacked_rook = self.rook_attacks(block, occupied);
+            for p in (block_attacked_rook & b[Piece::WhiteRook]).iter() {
+                res.push(Move::Simple {
+                    from: p,
+                    to: block,
+                    piece: Piece::WhiteRook,
+                });
+            }
+            for p in dbg!(block_attacked_rook & b[Piece::WhiteQueen]).iter() {
+                res.push(Move::Simple {
+                    from: p,
+                    to: block,
+                    piece: Piece::WhiteQueen,
+                });
+            }
+
+            let block_attacked_knight = self.knight_attacks[block] & b[Piece::WhiteKnight];
+            for p in block_attacked_knight.iter() {
+                res.push(Move::Simple {
+                    from: p,
+                    to: checker,
+                    piece: Piece::WhiteKnight,
+                });
+            }
+        }
     }
 
     fn move_pinned(
