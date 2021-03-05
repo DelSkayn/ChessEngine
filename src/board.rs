@@ -7,6 +7,13 @@ use ggez::{
     Context, GameResult,
 };
 
+#[derive(Eq, PartialEq, Debug)]
+pub enum PlayedMove {
+    Didnt,
+    Move,
+    Castle,
+}
+
 pub struct RenderBoard {
     pub board: Board,
     move_gen: MoveGenerator,
@@ -197,16 +204,16 @@ impl RenderBoard {
         }
     }
 
-    pub fn mouse_button_up_event(&mut self, btn: MouseButton, x: f32, y: f32) {
+    pub fn mouse_button_up_event(&mut self, btn: MouseButton, x: f32, y: f32) -> PlayedMove {
         match btn {
             MouseButton::Left => {}
-            _ => return,
+            _ => return PlayedMove::Didnt,
         };
 
         self.holding = false;
         if let Some(p) = self.dragging {
             if !self.rect.contains([x, y]) {
-                return;
+                return PlayedMove::Didnt;
             }
             let x = ((x - self.rect.x) / (self.rect.w / 8.0)).floor();
             let y = ((y - self.rect.y) / (self.rect.h / 8.0)).floor();
@@ -221,14 +228,18 @@ impl RenderBoard {
                 self.selected.unwrap(),
                 target
             );
-            if self.play_move(self.selected.unwrap(), target) {
+            let m = self.play_move(self.selected.unwrap(), target);
+            if m != PlayedMove::Didnt {
                 self.selected = None;
+                self.dragging = None;
+                return m;
             }
         }
         self.dragging = None;
+        PlayedMove::Didnt
     }
 
-    pub fn play_move(&mut self, mut selected: Square, mut target: Square) -> bool {
+    pub fn play_move(&mut self, mut selected: Square, mut target: Square) -> PlayedMove {
         if !self.board.white_turn() {
             selected = selected.flip();
             target = target.flip();
@@ -243,7 +254,7 @@ impl RenderBoard {
                         break;
                     }
                 }
-                _ => return false,
+                _ => return PlayedMove::Didnt,
             }
         }
 
@@ -261,9 +272,9 @@ impl RenderBoard {
             } else {
                 self.move_gen.gen_moves(&self.board, &mut self.moves);
             }
-            true
+            PlayedMove::Move
         } else {
-            false
+            PlayedMove::Didnt
         }
     }
 }

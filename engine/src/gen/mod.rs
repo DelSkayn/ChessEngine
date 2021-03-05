@@ -208,13 +208,15 @@ impl MoveGenerator {
         let occupied = player_pieces | opponent_pieces;
 
         let attacked = self.attacked(b, occupied);
-        let (_rook_pinners, _bishop_pinners, rook_pinned, bishop_pinned) =
+        let (rook_pinners, bishop_pinners, rook_pinned, bishop_pinned) =
             self.pinned(b, player_pieces, occupied);
 
         let pinned = bishop_pinned | rook_pinned;
 
-        dbg!(attacked);
-        dbg!(pinned);
+        if (b[Piece::WhiteKing] & attacked).any() {
+            self.gen_moves_check(res);
+            return;
+        }
 
         self.pawn_moves(b, occupied, pinned, opponent_pieces, res);
         self.sliding_pieces(b, occupied, pinned, player_pieces, res);
@@ -255,17 +257,123 @@ impl MoveGenerator {
                 res.push(Move::Castle { king: false })
             }
         }
+
+        self.move_pinned(
+            b,
+            occupied,
+            rook_pinned,
+            bishop_pinned,
+            rook_pinners,
+            bishop_pinners,
+            res,
+        );
     }
 
-    /*
-    fn move_pinned(&self, b: &Board, rook_pinned: BB, bishop_pinned: BB, res: Vec<Move>) {
-        for p in rook_pinned.iter(){
-            if (b[Piece::WhiteRook] & p).any(){
-                for
+    fn move_pinned(
+        &self,
+        b: &Board,
+        occupied: BB,
+        rook_pinned: BB,
+        bishop_pinned: BB,
+        rook_pinners: BB,
+        bishop_pinners: BB,
+        res: &mut Vec<Move>,
+    ) {
+        for p in rook_pinned.iter() {
+            let square = BB::square(p);
+            if (b[Piece::WhiteQueen] & square).any() {
+                let attack = self.ray_attacks_positive(p, occupied, Direction::N)
+                    | self.ray_attacks_positive(p, occupied, Direction::S);
+                let mut attacks = (attack & rook_pinners).saturate() & attack;
+                let attack = self.ray_attacks_positive(p, occupied, Direction::W)
+                    | self.ray_attacks_positive(p, occupied, Direction::E);
+                attacks |= (attack & rook_pinners).saturate() & attack;
+
+                for m in attacks.iter() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: m,
+                        piece: Piece::WhiteQueen,
+                    })
+                }
+            }
+            if (b[Piece::WhiteRook] & square).any() {
+                let attack = self.ray_attacks_positive(p, occupied, Direction::N)
+                    | self.ray_attacks_positive(p, occupied, Direction::S);
+                let mut attacks = (attack & rook_pinners).saturate() & attack;
+                let attack = self.ray_attacks_positive(p, occupied, Direction::W)
+                    | self.ray_attacks_positive(p, occupied, Direction::E);
+                attacks |= (attack & rook_pinners).saturate() & attack;
+
+                for m in attacks.iter() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: m,
+                        piece: Piece::WhiteRook,
+                    })
+                }
+            }
+            if (b[Piece::WhitePawn] & square).any() {
+                let move_mask = (BB::FILE_A << p.rank() & rook_pinners).saturate();
+                let single_move = (square << 8) & !occupied;
+                let double_move = ((single_move & BB::RANK_3) << 8) & !rook_pinners;
+                for m in (move_mask & single_move & double_move).iter() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: m,
+                        piece: Piece::WhitePawn,
+                    });
+                }
+            }
+        }
+
+        for p in bishop_pinned.iter() {
+            let square = BB::square(p);
+            if (b[Piece::WhiteQueen] & square).any() {
+                let attack = self.ray_attacks_positive(p, occupied, Direction::NW)
+                    | self.ray_attacks_positive(p, occupied, Direction::SE);
+                let mut attacks = (attack & bishop_pinners).saturate() & attack;
+                let attack = self.ray_attacks_positive(p, occupied, Direction::NE)
+                    | self.ray_attacks_positive(p, occupied, Direction::SW);
+                attacks |= (attack & bishop_pinners).saturate() & attack;
+
+                for m in attacks.iter() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: m,
+                        piece: Piece::WhiteQueen,
+                    })
+                }
+            }
+            if (b[Piece::WhiteBishop] & square).any() {
+                let attack = self.ray_attacks_positive(p, occupied, Direction::NW)
+                    | self.ray_attacks_positive(p, occupied, Direction::SE);
+                let mut attacks = (attack & bishop_pinners).saturate() & attack;
+                let attack = self.ray_attacks_positive(p, occupied, Direction::NE)
+                    | self.ray_attacks_positive(p, occupied, Direction::SW);
+                attacks |= (attack & bishop_pinners).saturate() & attack;
+
+                for m in attacks.iter() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: m,
+                        piece: Piece::WhiteBishop,
+                    })
+                }
+            }
+
+            if (b[Piece::WhitePawn] & square).any() {
+                let moves = ((square << 7) & bishop_pinners) | (square << 9 & bishop_pinners);
+                if moves.any() {
+                    res.push(Move::Simple {
+                        from: p,
+                        to: moves.first_piece(),
+                        piece: Piece::WhitePawn,
+                    })
+                }
             }
         }
     }
-    */
 
     fn attacked(&self, b: &Board, occupied: BB) -> BB {
         let mut attacked = BB::empty();
@@ -442,8 +550,9 @@ impl MoveGenerator {
         }
 
         for p in (b[Piece::WhiteQueen] & !pinned).iter() {
-            let attacks =
-                self.rook_attacks(p, occupied) | self.bishop_attacks(p, occupied) & !player;
+            let attacks = (self.rook_attacks(p, occupied) & !player
+                | self.bishop_attacks(p, occupied))
+                & !player;
 
             for m in attacks.iter() {
                 buffer.push(Move::Simple {

@@ -112,6 +112,16 @@ impl BB {
         debug_assert!(res < 64);
         Square(63 - res)
     }
+
+    #[inline]
+    pub fn fill(v: bool) -> Self {
+        Self(!(v as u64).wrapping_sub(1))
+    }
+
+    #[inline]
+    pub fn saturate(self) -> Self {
+        Self::fill(self.0 != 0)
+    }
 }
 
 impl Debug for BB {

@@ -1,5 +1,6 @@
-use engine::{Board, Move, MoveGenerator};
+use engine::Board;
 use ggez::{
+    audio::{SoundSource, Source},
     event::{self, EventHandler, MouseButton},
     graphics::{self, Color, Image, Rect},
     timer, Context, ContextBuilder, GameResult,
@@ -7,7 +8,7 @@ use ggez::{
 use std::{env, path};
 
 mod board;
-use board::RenderBoard;
+use board::{PlayedMove, RenderBoard};
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -49,6 +50,9 @@ fn main() {
 struct Chess {
     board: RenderBoard,
     piece_sprite: Image,
+    castle_sound: Source,
+    move_sound: Source,
+    play_move: board::PlayedMove,
 }
 
 impl Chess {
@@ -56,12 +60,27 @@ impl Chess {
         Chess {
             board: RenderBoard::new(board),
             piece_sprite: Image::new(ctx, "/pieces.png").unwrap(),
+            castle_sound: Source::new(ctx, "/castle.ogg").unwrap(),
+            move_sound: Source::new(ctx, "/move.ogg").unwrap(),
+            play_move: board::PlayedMove::Didnt,
         }
     }
 }
 
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        match self.play_move {
+            PlayedMove::Didnt => {}
+            PlayedMove::Castle => {
+                self.castle_sound.play(ctx)?;
+                self.play_move = PlayedMove::Didnt
+            }
+            PlayedMove::Move => {
+                self.move_sound.play(ctx)?;
+                self.play_move = PlayedMove::Didnt
+            }
+        }
+
         while timer::check_update_time(ctx, 5) {
             /*
             if self.moves.is_empty() {
@@ -92,7 +111,7 @@ impl EventHandler for Chess {
     }
 
     fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
-        self.board.mouse_button_up_event(button, x, y);
+        self.play_move = self.board.mouse_button_up_event(button, x, y);
     }
 
     fn mouse_motion_event(&mut self, _ctx: &mut Context, _x: f32, _y: f32, _dx: f32, _dy: f32) {
