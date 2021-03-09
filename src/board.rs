@@ -1,27 +1,17 @@
 use engine::{Board, Move, MoveGenerator, Piece, Square, BB};
 use ggez::{
-    event::MouseButton,
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect},
     input,
+    mint::Point2,
     mint::Vector2,
     Context, GameResult,
 };
 
-#[derive(Eq, PartialEq, Debug)]
-pub enum PlayedMove {
-    Didnt,
-    Move,
-    Castle,
-}
-
 pub struct RenderBoard {
     pub board: Board,
-    move_gen: MoveGenerator,
     selected: Option<Square>,
-    dragging: Option<Piece>,
-    holding: bool,
-    moves: Vec<Move>,
-    previous_move: Option<Move>,
+    dragging: Option<Square>,
+    mov: Option<(Square, Square)>,
     rect: Rect,
 }
 
@@ -32,12 +22,9 @@ impl RenderBoard {
         move_gen.gen_moves(&board, &mut moves);
         RenderBoard {
             board,
-            move_gen,
-            moves,
             selected: None,
             dragging: None,
-            holding: false,
-            previous_move: None,
+            mov: None,
             rect: Rect::zero(),
         }
     }
@@ -72,44 +59,33 @@ impl RenderBoard {
         }
 
         // Draw previous move
-        match self.previous_move {
-            None => {}
-            Some(Move::Simple {
-                mut from, mut to, ..
-            }) => {
-                if self.board.white_turn() {
-                    from = from.flip();
-                    to = to.flip();
-                }
+        if let Some((from, to)) = self.mov {
+            let x = offset_x + square_size * from.file() as f32;
+            let y = offset_y + square_size * (7 - from.rank()) as f32;
+            let color = Color::from_rgb_u32(0x98971a);
 
-                let x = offset_x + square_size * from.file() as f32;
-                let y = offset_y + square_size * (7 - from.rank()) as f32;
-                let color = Color::from_rgb_u32(0x98971a);
+            let rect = Rect {
+                x,
+                y,
+                w: square_size,
+                h: square_size,
+            };
 
-                let rect = Rect {
-                    x,
-                    y,
-                    w: square_size,
-                    h: square_size,
-                };
+            let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
+            graphics::draw(ctx, &rect, DrawParam::new())?;
 
-                let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-                graphics::draw(ctx, &rect, DrawParam::new())?;
+            let x = offset_x + square_size * to.file() as f32;
+            let y = offset_y + square_size * (7 - to.rank()) as f32;
 
-                let x = offset_x + square_size * to.file() as f32;
-                let y = offset_y + square_size * (7 - to.rank()) as f32;
+            let rect = Rect {
+                x,
+                y,
+                w: square_size,
+                h: square_size,
+            };
 
-                let rect = Rect {
-                    x,
-                    y,
-                    w: square_size,
-                    h: square_size,
-                };
-
-                let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-                graphics::draw(ctx, &rect, DrawParam::new())?;
-            }
-            _ => {}
+            let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
+            graphics::draw(ctx, &rect, DrawParam::new())?;
         }
 
         if let Some(s) = self.selected {
@@ -129,8 +105,8 @@ impl RenderBoard {
         }
 
         // Draw all pieces except one that is dragged
-        let exclude = if self.dragging.is_some() {
-            BB::square(self.selected.unwrap())
+        let exclude = if let Some(x) = self.dragging {
+            BB::square(x)
         } else {
             BB::empty()
         };
@@ -148,7 +124,11 @@ impl RenderBoard {
 
         // Draw the dragged piece
         if let Some(x) = self.dragging {
-            let param = piece_to_param(x as u8, [square_size, square_size], &sprite);
+            let param = piece_to_param(
+                self.on(x).unwrap() as u8,
+                [square_size, square_size],
+                &sprite,
+            );
             let pos = input::mouse::position(&ctx);
             let pos = [pos.x - square_size / 2.0, pos.y - square_size / 2.0];
             graphics::draw(ctx, sprite, param.dest(pos))?;
@@ -163,118 +143,60 @@ impl RenderBoard {
         Ok(())
     }
 
-    pub fn mouse_motion_event(&mut self) {
-        if self.holding {
-            self.holding = false;
-            if let Some(x) = self.selected {
-                self.dragging = self.board.on(x);
-            }
-        }
+    pub fn make_move(&mut self, mov: Move) {
+        self.board = self.board.make_move(mov);
+        self.clear_drag();
     }
 
-    pub fn mouse_button_down_event(&mut self, btn: MouseButton, x: f32, y: f32) {
-        match btn {
-            MouseButton::Left => {}
-            MouseButton::Right => {
-                self.selected = None;
-                return;
-            }
-            _ => return,
-        };
-        if !self.rect.contains([x, y]) {
-            return;
+    /// Returns the square on the board for a specific mouse position
+    pub fn square(&mut self, pos: impl Into<Point2<f32>>) -> Option<Square> {
+        let pos = pos.into();
+        if !self.rect.contains(pos) {
+            return None;
         }
-        self.holding = true;
-        let x = ((x - self.rect.x) / (self.rect.w / 8.0)).floor();
-        let y = ((y - self.rect.y) / (self.rect.h / 8.0)).floor();
 
-        let file = x as u8;
-        let rank = 7 - y as u8;
+        let file = ((pos.x - self.rect.x) / (self.rect.w / 8.0)) as u8;
+        let rank = ((pos.y - self.rect.y) / (self.rect.h / 8.0)) as u8;
+        let rank = 7 - rank;
 
-        let square = Square::from_file_rank(file, rank);
-        if self
-            .board
-            .on(square)
-            .map(|x| x.white() == self.board.white_turn())
-            .unwrap_or(false)
-        {
-            self.selected = Some(square);
-        } else {
-            self.selected = None;
-        }
+        dbg!(Some(Square::from_file_rank(file, rank)))
     }
 
-    pub fn mouse_button_up_event(&mut self, btn: MouseButton, x: f32, y: f32) -> PlayedMove {
-        match btn {
-            MouseButton::Left => {}
-            _ => return PlayedMove::Didnt,
-        };
+    pub fn on(&self, square: Square) -> Option<Piece> {
+        self.board.on(square)
+    }
 
-        self.holding = false;
-        if let Some(p) = self.dragging {
-            if !self.rect.contains([x, y]) {
-                return PlayedMove::Didnt;
-            }
-            let x = ((x - self.rect.x) / (self.rect.w / 8.0)).floor();
-            let y = ((y - self.rect.y) / (self.rect.h / 8.0)).floor();
+    /// Select a specific square on the board.
+    pub fn select(&mut self, square: Square) {
+        self.selected = Some(square);
+    }
 
-            let file = x as u8;
-            let rank = 7 - y as u8;
+    /// Clear the selected square on the board
+    pub fn clear_select(&mut self) {
+        self.selected = None;
+    }
 
-            let target = Square::from_file_rank(file, rank);
-            println!(
-                "move {:?} from {:?} to {:?}",
-                p,
-                self.selected.unwrap(),
-                target
-            );
-            let m = self.play_move(self.selected.unwrap(), target);
-            if m != PlayedMove::Didnt {
-                self.selected = None;
-                self.dragging = None;
-                return m;
-            }
+    /// highlight a move on the board
+    pub fn highlight(&mut self, from: Square, to: Square) {
+        self.mov = Some((from, to));
+    }
+
+    /// Clear the highlighted move.
+    pub fn clear_highlight(&mut self) {
+        self.mov = None;
+    }
+
+    /// Set a piece to be dragged
+    pub fn drag(&mut self, square: Square) -> Option<Piece> {
+        if let Some(piece) = self.on(square) {
+            self.dragging = Some(square);
+            return Some(piece);
         }
+        return None;
+    }
+
+    pub fn clear_drag(&mut self) {
         self.dragging = None;
-        PlayedMove::Didnt
-    }
-
-    pub fn play_move(&mut self, mut selected: Square, mut target: Square) -> PlayedMove {
-        if !self.board.white_turn() {
-            selected = selected.flip();
-            target = target.flip();
-        }
-        let mut mov = None;
-        dbg!(&self.moves);
-        for m in self.moves.iter() {
-            match *m {
-                Move::Simple { from, to, .. } => {
-                    if from == selected && to == target {
-                        mov = Some(m);
-                        break;
-                    }
-                }
-                _ => return PlayedMove::Didnt,
-            }
-        }
-
-        if let Some(x) = mov {
-            if self.board.white_turn() {
-                self.board = self.board.make_move(*x);
-            } else {
-                self.board = self.board.flip().make_move(*x).flip();
-            }
-            self.previous_move = Some(*x);
-            self.moves.clear();
-            if !self.board.white_turn() {
-                self.move_gen.gen_moves(&self.board.flip(), &mut self.moves);
-            } else {
-                self.move_gen.gen_moves(&self.board, &mut self.moves);
-            }
-            PlayedMove::Move
-        } else {
-            PlayedMove::Didnt
-        }
     }
 }
 
