@@ -104,13 +104,13 @@ impl BB {
     pub fn first_piece(self) -> Square {
         let res = self.0.trailing_zeros() as u8;
         debug_assert!(res < 64);
-        Square(res)
+        Square::new(res)
     }
 
     pub fn last_piece(self) -> Square {
         let res = self.0.leading_zeros() as u8;
         debug_assert!(res < 64);
-        Square(63 - res)
+        Square::new(63 - res)
     }
 
     #[inline]
@@ -297,7 +297,7 @@ impl Iterator for BBIterRev {
         }
 
         let idx = 63 - self.0 .0.leading_zeros();
-        let res = Square(idx as u8);
+        let res = Square::new(idx as u8);
         self.0 ^= BB::square(res);
         Some(res)
     }

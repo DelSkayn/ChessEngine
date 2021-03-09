@@ -275,7 +275,7 @@ impl MoveGenerator {
             })
         }
 
-        if dbg!(checkers.count()) > 1 {
+        if checkers.count() > 1 {
             return;
         }
 
@@ -345,7 +345,7 @@ impl MoveGenerator {
         }
 
         // All blocking moves
-        let between = dbg!(self.between[checker][king_square]);
+        let between = self.between[checker][king_square];
 
         let pawn_blocks = (b[Piece::WhitePawn] << 8) & between;
         for p in pawn_blocks.iter() {
@@ -373,7 +373,7 @@ impl MoveGenerator {
                     piece: Piece::WhiteBishop,
                 });
             }
-            for p in dbg!(block_attacked_bishop & b[Piece::WhiteQueen]).iter() {
+            for p in (block_attacked_bishop & b[Piece::WhiteQueen]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,
@@ -389,7 +389,7 @@ impl MoveGenerator {
                     piece: Piece::WhiteRook,
                 });
             }
-            for p in dbg!(block_attacked_rook & b[Piece::WhiteQueen]).iter() {
+            for p in (block_attacked_rook & b[Piece::WhiteQueen]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,

@@ -44,17 +44,17 @@ impl ExtraState {
     }
 
     #[inline]
-    pub const fn set_en_passant(self, which: Square) -> Self {
+    pub fn set_en_passant(self, which: Square) -> Self {
         let res = self.0;
         let res = (res & !ExtraState::EN_PASSANT_MASK)
-            | (which.0 as u16 & (ExtraState::EN_PASSANT_MASK | ExtraState::EN_PASSANT_PRESENT));
+            | (which.get() as u16 & (ExtraState::EN_PASSANT_MASK | ExtraState::EN_PASSANT_PRESENT));
         Self(res)
     }
 
     #[inline]
-    pub const fn get_en_passant(self) -> Option<Square> {
+    pub fn get_en_passant(self) -> Option<Square> {
         if self.0 & ExtraState::EN_PASSANT_PRESENT == 0 {
-            Some(Square((self.0 & ExtraState::EN_PASSANT_MASK) as u8))
+            Some(Square::new((self.0 & ExtraState::EN_PASSANT_MASK) as u8))
         } else {
             None
         }

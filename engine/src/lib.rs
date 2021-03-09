@@ -7,101 +7,15 @@ mod render;
 pub use extra_state::ExtraState;
 mod gen;
 pub use gen::MoveGenerator;
+mod square;
+pub use square::Square;
+mod mov;
+pub use mov::Move;
 
 use std::{
     fmt::{self, Debug},
-    ops::{Add, Index, IndexMut, Sub},
+    ops::{Index, IndexMut},
 };
-
-#[derive(Eq, PartialEq, Clone, Copy)]
-pub struct Square(u8);
-
-impl Square {
-    pub const A1: Square = Square(0);
-    pub const B1: Square = Square(1);
-    pub const C1: Square = Square(2);
-    pub const D1: Square = Square(3);
-    pub const E1: Square = Square(4);
-    pub const F1: Square = Square(5);
-    pub const G1: Square = Square(6);
-    pub const H1: Square = Square(7);
-
-    pub fn new(v: u8) -> Self {
-        debug_assert!(v < 64);
-        Square(v)
-    }
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        let mut chars = name.chars();
-        let file = chars.next()?;
-        let rank = chars.next()?;
-        if ('a'..='h').contains(&file) || ('A'..='H').contains(&file) {
-            if !('1'..='8').contains(&rank) {
-                return None;
-            }
-            let file = file.to_ascii_lowercase() as u8 - 'a' as u8;
-            let rank = rank as u8 - '1' as u8;
-            return Some(Self::from_file_rank(file, rank));
-        }
-        None
-    }
-
-    pub fn from_file_rank(file: u8, rank: u8) -> Self {
-        let res = (file & 7) | ((rank & 7) << 3);
-        debug_assert!(res < 64);
-        Square(res)
-    }
-
-    pub fn to_file_rank(self) -> (u8, u8) {
-        (self.file(), self.rank())
-    }
-
-    pub const fn get(self) -> u8 {
-        self.0
-    }
-
-    pub fn file(self) -> u8 {
-        self.0 & 7
-    }
-
-    pub fn rank(self) -> u8 {
-        self.0 >> 3
-    }
-
-    pub fn flip(self) -> Self {
-        Square(63 - self.0)
-    }
-}
-
-impl Add<u8> for Square {
-    type Output = Self;
-
-    fn add(mut self, rhs: u8) -> Self::Output {
-        self.0 += rhs;
-        debug_assert!(self.0 < 64);
-        self
-    }
-}
-
-impl Sub<u8> for Square {
-    type Output = Self;
-
-    fn sub(mut self, rhs: u8) -> Self::Output {
-        self.0 -= rhs;
-        debug_assert!(self.0 < 64);
-        self
-    }
-}
-
-impl Debug for Square {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let file = self.0 % 8;
-        let rank = self.0 / 8;
-        let file_name = ('a' as u8 + file) as char;
-        write!(f, "{}{}", file_name, rank + 1)
-    }
-}
-
 pub trait Player {
     const MY_KING: u8;
     const MY_QUEEN: u8;
@@ -123,27 +37,6 @@ pub struct Board {
     pieces: [BB; 12],
 
     state: ExtraState,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum Move {
-    Simple {
-        from: Square,
-        to: Square,
-        piece: Piece,
-    },
-    Promote {
-        promote: Piece,
-        to: Square,
-        from: Square,
-    },
-    Castle {
-        king: bool,
-    },
-    EnPassant {
-        to: Square,
-        from: Square,
-    },
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

@@ -245,8 +245,8 @@ impl RenderBoard {
             target = target.flip();
         }
         let mut mov = None;
+        dbg!(&self.moves);
         for m in self.moves.iter() {
-            dbg!(m);
             match *m {
                 Move::Simple { from, to, .. } => {
                     if from == selected && to == target {
@@ -265,7 +265,6 @@ impl RenderBoard {
                 self.board = self.board.flip().make_move(*x).flip();
             }
             self.previous_move = Some(*x);
-            dbg!(self.board);
             self.moves.clear();
             if !self.board.white_turn() {
                 self.move_gen.gen_moves(&self.board.flip(), &mut self.moves);

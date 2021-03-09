@@ -154,6 +154,6 @@ impl Board {
         let row = row as u8 - b'1';
         let column = column as u8 - b'a';
 
-        return Some(Square(row * 8 + column));
+        return Some(Square::new(row * 8 + column));
     }
 }

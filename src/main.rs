@@ -3,7 +3,8 @@ use ggez::{
     audio::{SoundSource, Source},
     event::{self, EventHandler, MouseButton},
     graphics::{self, Color, Image, Rect},
-    timer, Context, ContextBuilder, GameResult,
+    conf::WindowMode,
+    Context, ContextBuilder, GameResult,
 };
 use std::{env, path};
 
@@ -31,7 +32,7 @@ fn main() {
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
-        //.window_mode(WindowMode::default().resizable(true))
+        .window_mode(WindowMode::default().resizable(true))
         .build()
         .expect("aieee, could not create ggez context!");
 
