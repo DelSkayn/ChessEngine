@@ -16,6 +16,15 @@ impl Square {
     pub const G1: Square = Square(6);
     pub const H1: Square = Square(7);
 
+    pub const A8: Square = Square(56);
+    pub const B8: Square = Square(57);
+    pub const C8: Square = Square(58);
+    pub const D8: Square = Square(59);
+    pub const E8: Square = Square(60);
+    pub const F8: Square = Square(61);
+    pub const G8: Square = Square(62);
+    pub const H8: Square = Square(63);
+
     pub fn new(v: u8) -> Self {
         debug_assert!(v < 64);
         Square(v)
@@ -78,6 +87,30 @@ impl Sub<u8> for Square {
 
     fn sub(mut self, rhs: u8) -> Self::Output {
         self.0 -= rhs;
+        debug_assert!(self.0 < 64);
+        self
+    }
+}
+
+impl Add<i8> for Square {
+    type Output = Self;
+
+    fn add(mut self, rhs: i8) -> Self::Output {
+        let tmp = self.0 as i8 + rhs;
+        debug_assert!(tmp > 0);
+        self.0 = tmp as u8;
+        debug_assert!(self.0 < 64);
+        self
+    }
+}
+
+impl Sub<i8> for Square {
+    type Output = Self;
+
+    fn sub(mut self, rhs: i8) -> Self::Output {
+        let tmp = self.0 as i8 - rhs;
+        debug_assert!(tmp > 0);
+        self.0 = tmp as u8;
         debug_assert!(self.0 < 64);
         self
     }

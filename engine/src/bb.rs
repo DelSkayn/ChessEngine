@@ -66,11 +66,20 @@ impl BB {
     }
 
     #[inline(always)]
-    pub fn shift(self, value: i8) -> Self {
-        if value < 0 {
-            self >> (-value) as u8
+    pub fn const_shift<const S: i8>(self) -> Self {
+        if S < 0 {
+            self >> (-S) as u8
         } else {
-            self << value as u8
+            self << S as u8
+        }
+    }
+
+    #[inline(always)]
+    pub fn shift(self, v: i8) -> Self {
+        if v < 0 {
+            self >> (-v) as u8
+        } else {
+            self << v as u8
         }
     }
 

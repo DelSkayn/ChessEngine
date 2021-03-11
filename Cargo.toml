@@ -12,3 +12,4 @@ thiserror = "1.0"
 anyhow = "1.0"
 euclid = "0.22"
 engine = {path =  "./engine"}
+rand = "0.8.3"

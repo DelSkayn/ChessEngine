@@ -2,6 +2,11 @@ use crate::{board::RenderBoard, game::PlayedMove};
 use engine::{Move, MoveGenerator, Square};
 use ggez::event::MouseButton;
 
+mod eval;
+pub use eval::ThreadedEval;
+mod random;
+pub use random::RandomPlayer;
+
 pub trait Player {
     fn update(&mut self, _board: &mut RenderBoard) -> PlayedMove {
         PlayedMove::Didnt
@@ -99,8 +104,8 @@ impl Player for MousePlayer {
                     .unwrap_or(false)
                 {
                     board.select(x);
+                    self.holding = Some(x);
                 }
-                self.holding = Some(x);
             }
         } else if button == MouseButton::Right {
             board.clear_select();
@@ -122,6 +127,7 @@ impl Player for MousePlayer {
             board.clear_drag();
             if let Some(b_from) = self.holding.take() {
                 if let Some(b_to) = board.square([x, y]) {
+                    dbg!(&self.possible_moves);
                     for m in self.possible_moves.iter().copied() {
                         match m {
                             Move::Simple { from, to, .. } => {

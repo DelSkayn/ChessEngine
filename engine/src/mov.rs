@@ -32,8 +32,8 @@ fn write_piece(p: Piece, f: &mut fmt::Formatter) -> fmt::Result {
         Piece::BlackRook => write!(f, "r"),
         Piece::WhiteBishop => write!(f, "B"),
         Piece::BlackBishop => write!(f, "b"),
-        Piece::WhiteKnight => write!(f, "K"),
-        Piece::BlackKnight => write!(f, "k"),
+        Piece::WhiteKnight => write!(f, "N"),
+        Piece::BlackKnight => write!(f, "n"),
         Piece::WhitePawn | Piece::BlackPawn => Ok(()),
     }
 }

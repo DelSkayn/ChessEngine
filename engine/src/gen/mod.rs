@@ -39,6 +39,145 @@ impl Direction {
     }
 }
 
+pub trait Player {
+    const MY_KING: Piece;
+    const MY_QUEEN: Piece;
+    const MY_BISHOP: Piece;
+    const MY_KNIGHT: Piece;
+    const MY_ROOK: Piece;
+    const MY_PAWN: Piece;
+
+    const THEIR_KING: Piece;
+    const THEIR_QUEEN: Piece;
+    const THEIR_BISHOP: Piece;
+    const THEIR_KNIGHT: Piece;
+    const THEIR_ROOK: Piece;
+    const THEIR_PAWN: Piece;
+
+    const KING_CASTLE_STATE: ExtraState;
+    const KING_CASTLE_TARGET: BB;
+    const QUEEN_CASTLE_STATE: ExtraState;
+    const QUEEN_CASTLE_TARGET: BB;
+
+    const KING_CASTLE_MASK: BB;
+    const QUEEN_CASTLE_MASK: BB;
+
+    const PROMOTE_RANK: BB;
+    const DOUBLE_MOVE_RANK: BB;
+    const LEFT_FILE: BB;
+    const RIGHT_FILE: BB;
+
+    const PAWN_MOVE: i8;
+    const PAWN_ATTACK_LEFT: i8;
+    const PAWN_ATTACK_RIGHT: i8;
+
+    fn pawn_move(b: BB) -> BB;
+
+    fn pawn_attacks_left(b: BB) -> BB;
+
+    fn pawn_attacks_right(b: BB) -> BB;
+}
+
+struct White;
+
+impl Player for White {
+    const MY_KING: Piece = Piece::WhiteKing;
+    const MY_QUEEN: Piece = Piece::WhiteQueen;
+    const MY_BISHOP: Piece = Piece::WhiteBishop;
+    const MY_KNIGHT: Piece = Piece::WhiteKnight;
+    const MY_ROOK: Piece = Piece::WhiteRook;
+    const MY_PAWN: Piece = Piece::WhitePawn;
+
+    const THEIR_KING: Piece = Piece::BlackKing;
+    const THEIR_QUEEN: Piece = Piece::BlackQueen;
+    const THEIR_BISHOP: Piece = Piece::BlackBishop;
+    const THEIR_KNIGHT: Piece = Piece::BlackKnight;
+    const THEIR_ROOK: Piece = Piece::BlackRook;
+    const THEIR_PAWN: Piece = Piece::BlackPawn;
+
+    const KING_CASTLE_STATE: ExtraState = ExtraState::WHITE_KING_CASTLE;
+    const KING_CASTLE_TARGET: BB = BB(6);
+    const QUEEN_CASTLE_STATE: ExtraState = ExtraState::WHITE_QUEEN_CASTLE;
+    const QUEEN_CASTLE_TARGET: BB = BB(2);
+
+    const KING_CASTLE_MASK: BB = BB(0b1100000);
+    const QUEEN_CASTLE_MASK: BB = BB(0b1110);
+
+    const PROMOTE_RANK: BB = BB::RANK_8;
+    const DOUBLE_MOVE_RANK: BB = BB::RANK_3;
+    const LEFT_FILE: BB = BB::FILE_A;
+    const RIGHT_FILE: BB = BB::FILE_H;
+
+    const PAWN_MOVE: i8 = 8;
+    const PAWN_ATTACK_LEFT: i8 = 7;
+    const PAWN_ATTACK_RIGHT: i8 = 9;
+
+    #[inline]
+    fn pawn_move(b: BB) -> BB {
+        b << 8
+    }
+
+    #[inline]
+    fn pawn_attacks_left(b: BB) -> BB {
+        (b & !BB::FILE_A) << 7
+    }
+
+    #[inline]
+    fn pawn_attacks_right(b: BB) -> BB {
+        (b & !BB::FILE_H) << 9
+    }
+}
+
+struct Black;
+
+impl Player for Black {
+    const THEIR_KING: Piece = Piece::WhiteKing;
+    const THEIR_QUEEN: Piece = Piece::WhiteQueen;
+    const THEIR_BISHOP: Piece = Piece::WhiteBishop;
+    const THEIR_KNIGHT: Piece = Piece::WhiteKnight;
+    const THEIR_ROOK: Piece = Piece::WhiteRook;
+    const THEIR_PAWN: Piece = Piece::WhitePawn;
+
+    const MY_KING: Piece = Piece::BlackKing;
+    const MY_QUEEN: Piece = Piece::BlackQueen;
+    const MY_BISHOP: Piece = Piece::BlackBishop;
+    const MY_KNIGHT: Piece = Piece::BlackKnight;
+    const MY_ROOK: Piece = Piece::BlackRook;
+    const MY_PAWN: Piece = Piece::BlackPawn;
+
+    const KING_CASTLE_STATE: ExtraState = ExtraState::BLACK_KING_CASTLE;
+    const QUEEN_CASTLE_STATE: ExtraState = ExtraState::BLACK_QUEEN_CASTLE;
+
+    const KING_CASTLE_MASK: BB = BB(0b1100000 << 56);
+    const KING_CASTLE_TARGET: BB = BB(6 + 56);
+    const QUEEN_CASTLE_MASK: BB = BB(0b1110 << 56);
+    const QUEEN_CASTLE_TARGET: BB = BB(2 + 56);
+
+    const PROMOTE_RANK: BB = BB::RANK_1;
+    const DOUBLE_MOVE_RANK: BB = BB::RANK_6;
+    const LEFT_FILE: BB = BB::FILE_H;
+    const RIGHT_FILE: BB = BB::FILE_A;
+
+    const PAWN_MOVE: i8 = -8;
+    const PAWN_ATTACK_LEFT: i8 = -7;
+    const PAWN_ATTACK_RIGHT: i8 = -9;
+
+    #[inline]
+    fn pawn_move(b: BB) -> BB {
+        b >> 8
+    }
+
+    #[inline]
+    fn pawn_attacks_left(b: BB) -> BB {
+        (b & !BB::FILE_H) >> 7
+    }
+
+    #[inline]
+    fn pawn_attacks_right(b: BB) -> BB {
+        (b & !BB::FILE_A) >> 9
+    }
+}
+
 impl MoveGenerator {
     const DIRECTION_SHIFT: [i8; 8] = [7, 8, 9, 1, -7, -8, -9, -1];
     const DIRECTION_MASK: [BB; 8] = [
@@ -169,76 +308,83 @@ impl MoveGenerator {
 
         res
     }
-
     pub fn gen_moves(&self, b: &Board, res: &mut Vec<Move>) {
-        let player_pieces = b[Piece::WhiteKing]
-            | b[Piece::WhiteQueen]
-            | b[Piece::WhiteBishop]
-            | b[Piece::WhiteKnight]
-            | b[Piece::WhiteRook]
-            | b[Piece::WhitePawn];
+        if b.white_turn() {
+            self.gen_moves_player::<White>(b, res);
+        } else {
+            self.gen_moves_player::<Black>(b, res);
+        }
+    }
 
-        let opponent_pieces = b[Piece::BlackKing]
-            | b[Piece::BlackQueen]
-            | b[Piece::BlackBishop]
-            | b[Piece::BlackKnight]
-            | b[Piece::BlackRook]
-            | b[Piece::BlackPawn];
+    pub fn gen_moves_player<P: Player>(&self, b: &Board, res: &mut Vec<Move>) {
+        let player_pieces = b[P::MY_KING]
+            | b[P::MY_QUEEN]
+            | b[P::MY_BISHOP]
+            | b[P::MY_KNIGHT]
+            | b[P::MY_ROOK]
+            | b[P::MY_PAWN];
+
+        let opponent_pieces = b[P::THEIR_KING]
+            | b[P::THEIR_QUEEN]
+            | b[P::THEIR_BISHOP]
+            | b[P::THEIR_KNIGHT]
+            | b[P::THEIR_ROOK]
+            | b[P::THEIR_PAWN];
 
         let occupied = player_pieces | opponent_pieces;
 
-        let attacked = self.attacked(b, occupied);
+        let attacked = self.attacked::<P>(b, occupied);
         let (rook_pinners, bishop_pinners, rook_pinned, bishop_pinned) =
-            self.pinned(b, player_pieces, occupied);
+            self.pinned::<P>(b, player_pieces, occupied);
 
         let pinned = bishop_pinned | rook_pinned;
 
-        if (b[Piece::WhiteKing] & attacked).any() {
-            self.gen_moves_check(b, attacked, player_pieces, opponent_pieces, occupied, res);
+        if (b[P::MY_KING] & attacked).any() {
+            self.gen_moves_check::<P>(b, attacked, player_pieces, opponent_pieces, occupied, res);
             return;
         }
 
-        self.pawn_moves(b, occupied, pinned, opponent_pieces, res);
-        self.sliding_pieces(b, occupied, pinned, player_pieces, res);
+        self.pawn_moves::<P>(b, occupied, pinned, opponent_pieces, res);
+        self.sliding_pieces::<P>(b, occupied, pinned, player_pieces, res);
 
-        for p in (b[Piece::WhiteKnight] & !pinned).iter() {
+        for p in (b[P::MY_KNIGHT] & !pinned).iter() {
             let moves = self.knight_attacks[p] & !player_pieces;
             for m in moves.iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: m,
-                    piece: Piece::WhiteKnight,
+                    piece: P::MY_KNIGHT,
                 })
             }
         }
 
-        let p = b[Piece::WhiteKing].first_piece();
+        let p = b[P::MY_KING].first_piece();
         let moves = self.king_attacks[p] & !player_pieces & !attacked;
         for m in moves.iter() {
             res.push(Move::Simple {
                 from: p,
                 to: m,
-                piece: Piece::WhiteKing,
+                piece: P::MY_KING,
             })
         }
 
-        if (b.state & ExtraState::WHITE_KING_CASTLE).any() {
-            let present = occupied & BB::WHITE_KING_CASTLE_MASK;
-            let attacked = attacked & BB(6);
+        if (b.state & P::KING_CASTLE_STATE).any() {
+            let present = occupied & P::KING_CASTLE_MASK;
+            let attacked = attacked & P::KING_CASTLE_TARGET;
             if (present | attacked).none() {
                 res.push(Move::Castle { king: true })
             }
         }
 
-        if (b.state & ExtraState::WHITE_QUEEN_CASTLE).any() {
-            let present = occupied & BB::WHITE_QUEEN_CASTLE_MASK;
-            let attacked = attacked & BB(2);
+        if (b.state & P::QUEEN_CASTLE_STATE).any() {
+            let present = occupied & P::QUEEN_CASTLE_MASK;
+            let attacked = attacked & P::QUEEN_CASTLE_TARGET;
             if (present | attacked).none() {
                 res.push(Move::Castle { king: false })
             }
         }
 
-        self.move_pinned(
+        self.move_pinned::<P>(
             b,
             occupied,
             rook_pinned,
@@ -249,7 +395,7 @@ impl MoveGenerator {
         );
     }
 
-    fn gen_moves_check(
+    fn gen_moves_check<P: Player>(
         &self,
         b: &Board,
         attacked: BB,
@@ -258,20 +404,20 @@ impl MoveGenerator {
         occupied: BB,
         res: &mut Vec<Move>,
     ) {
-        let king_square = b[Piece::WhiteKing].first_piece();
+        let king_square = b[P::MY_KING].first_piece();
 
         let checkers = (self.knight_attacks[king_square]
             | self.rook_attacks(king_square, occupied)
             | self.bishop_attacks(king_square, occupied))
             & opponent_pieces;
 
-        let p = b[Piece::WhiteKing].first_piece();
+        let p = b[P::MY_KING].first_piece();
         let moves = self.king_attacks[p] & !player_pieces & !attacked;
         for m in moves.iter() {
             res.push(Move::Simple {
                 from: p,
                 to: m,
-                piece: Piece::WhiteKing,
+                piece: P::MY_KING,
             })
         }
 
@@ -283,132 +429,133 @@ impl MoveGenerator {
 
         // All moves which take the checker
         let checker_attacked_bishop = self.bishop_attacks(checker, occupied);
-        for p in (checker_attacked_bishop & b[Piece::WhiteBishop]).iter() {
+        for p in (checker_attacked_bishop & b[P::MY_BISHOP]).iter() {
             res.push(Move::Simple {
                 from: p,
                 to: checker,
-                piece: Piece::WhiteBishop,
+                piece: P::MY_BISHOP,
             });
         }
-        for p in (checker_attacked_bishop & b[Piece::WhiteQueen]).iter() {
+        for p in (checker_attacked_bishop & b[P::MY_BISHOP]).iter() {
             res.push(Move::Simple {
                 from: p,
                 to: checker,
-                piece: Piece::WhiteQueen,
+                piece: P::MY_BISHOP,
             });
         }
 
         let checker_attacked_rook = self.rook_attacks(checker, occupied);
-        for p in (checker_attacked_rook & b[Piece::WhiteRook]).iter() {
+        for p in (checker_attacked_rook & b[P::MY_ROOK]).iter() {
             res.push(Move::Simple {
                 from: p,
                 to: checker,
-                piece: Piece::WhiteRook,
+                piece: P::MY_ROOK,
             });
         }
-        for p in (checker_attacked_rook & b[Piece::WhiteQueen]).iter() {
+        for p in (checker_attacked_rook & b[P::MY_QUEEN]).iter() {
             res.push(Move::Simple {
                 from: p,
                 to: checker,
-                piece: Piece::WhiteQueen,
+                piece: P::MY_QUEEN,
             });
         }
 
-        let checker_attacked_knight = self.knight_attacks[checker] & b[Piece::WhiteKnight];
+        let checker_attacked_knight = self.knight_attacks[checker] & b[P::MY_KNIGHT];
         for p in checker_attacked_knight.iter() {
             res.push(Move::Simple {
                 from: p,
                 to: checker,
-                piece: Piece::WhiteKnight,
+                piece: P::MY_KNIGHT,
             });
         }
 
-        let pawn_attacks = (b[Piece::WhitePawn] << 7) & checkers;
+        let pawn_attacks = P::pawn_attacks_left(b[P::MY_PAWN]) & checkers;
         for p in pawn_attacks.iter() {
             res.push(Move::Simple {
-                from: p - 7,
+                from: p - P::PAWN_ATTACK_LEFT,
                 to: p,
-                piece: Piece::WhiteKnight,
+                piece: P::MY_PAWN,
             });
         }
-        let pawn_attacks = (b[Piece::WhitePawn] << 9) & checkers;
+        let pawn_attacks = P::pawn_attacks_right(b[P::MY_PAWN]) & checkers;
         for p in pawn_attacks.iter() {
             res.push(Move::Simple {
-                from: p - 9,
+                from: p - P::PAWN_ATTACK_RIGHT,
                 to: p,
-                piece: Piece::WhiteKnight,
+                piece: P::MY_PAWN,
             });
         }
 
-        if (b[Piece::BlackKnight] & checkers).any() {
+        if (b[P::THEIR_KNIGHT] & checkers).any() {
             return;
         }
 
         // All blocking moves
         let between = self.between[checker][king_square];
 
-        let pawn_blocks = (b[Piece::WhitePawn] << 8) & between;
+        let pawn_blocks = P::pawn_move(b[P::MY_PAWN]) & between;
         for p in pawn_blocks.iter() {
             res.push(Move::Simple {
-                from: p - 8,
+                from: p - P::PAWN_MOVE,
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
-        let double_pawn_blocks = ((b[Piece::WhitePawn] & BB::RANK_2) << 16) & between;
+        let double_pawn_blocks =
+            P::pawn_move(P::pawn_move(b[P::MY_PAWN]) & P::DOUBLE_MOVE_RANK & !occupied) & between;
         for p in double_pawn_blocks.iter() {
             res.push(Move::Simple {
-                from: p - 16,
+                from: p - (P::PAWN_MOVE + P::PAWN_MOVE),
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
 
         for block in between.iter() {
             let block_attacked_bishop = self.bishop_attacks(block, occupied);
-            for p in (block_attacked_bishop & b[Piece::WhiteBishop]).iter() {
+            for p in (block_attacked_bishop & b[P::MY_BISHOP]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,
-                    piece: Piece::WhiteBishop,
+                    piece: P::MY_BISHOP,
                 });
             }
-            for p in (block_attacked_bishop & b[Piece::WhiteQueen]).iter() {
+            for p in (block_attacked_bishop & b[P::MY_QUEEN]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,
-                    piece: Piece::WhiteQueen,
+                    piece: P::MY_QUEEN,
                 });
             }
 
             let block_attacked_rook = self.rook_attacks(block, occupied);
-            for p in (block_attacked_rook & b[Piece::WhiteRook]).iter() {
+            for p in (block_attacked_rook & b[P::MY_ROOK]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,
-                    piece: Piece::WhiteRook,
+                    piece: P::MY_ROOK,
                 });
             }
-            for p in (block_attacked_rook & b[Piece::WhiteQueen]).iter() {
+            for p in (block_attacked_rook & b[P::MY_QUEEN]).iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: block,
-                    piece: Piece::WhiteQueen,
+                    piece: P::MY_QUEEN,
                 });
             }
 
-            let block_attacked_knight = self.knight_attacks[block] & b[Piece::WhiteKnight];
+            let block_attacked_knight = self.knight_attacks[block] & b[P::MY_KNIGHT];
             for p in block_attacked_knight.iter() {
                 res.push(Move::Simple {
                     from: p,
                     to: checker,
-                    piece: Piece::WhiteKnight,
+                    piece: P::MY_KNIGHT,
                 });
             }
         }
     }
 
-    fn move_pinned(
+    fn move_pinned<P: Player>(
         &self,
         b: &Board,
         occupied: BB,
@@ -420,7 +567,7 @@ impl MoveGenerator {
     ) {
         for p in rook_pinned.iter() {
             let square = BB::square(p);
-            if (b[Piece::WhiteQueen] & square).any() {
+            if (b[P::MY_QUEEN] & square).any() {
                 let attack = self.ray_attacks_positive(p, occupied, Direction::N)
                     | self.ray_attacks_positive(p, occupied, Direction::S);
                 let mut attacks = (attack & rook_pinners).saturate() & attack;
@@ -432,11 +579,11 @@ impl MoveGenerator {
                     res.push(Move::Simple {
                         from: p,
                         to: m,
-                        piece: Piece::WhiteQueen,
+                        piece: P::MY_QUEEN,
                     })
                 }
             }
-            if (b[Piece::WhiteRook] & square).any() {
+            if (b[P::MY_ROOK] & square).any() {
                 let attack = self.ray_attacks_positive(p, occupied, Direction::N)
                     | self.ray_attacks_positive(p, occupied, Direction::S);
                 let mut attacks = (attack & rook_pinners).saturate() & attack;
@@ -448,19 +595,19 @@ impl MoveGenerator {
                     res.push(Move::Simple {
                         from: p,
                         to: m,
-                        piece: Piece::WhiteRook,
+                        piece: P::MY_ROOK,
                     })
                 }
             }
-            if (b[Piece::WhitePawn] & square).any() {
+            if (b[P::MY_PAWN] & square).any() {
                 let move_mask = (BB::FILE_A << p.rank() & rook_pinners).saturate();
-                let single_move = (square << 8) & !occupied;
-                let double_move = ((single_move & BB::RANK_3) << 8) & !rook_pinners;
-                for m in (move_mask & single_move & double_move).iter() {
+                let single_move = P::pawn_move(square) & !occupied;
+                let double_move = P::pawn_move(single_move & P::DOUBLE_MOVE_RANK) & !rook_pinners;
+                for m in (move_mask & (single_move | double_move)).iter() {
                     res.push(Move::Simple {
                         from: p,
                         to: m,
-                        piece: Piece::WhitePawn,
+                        piece: P::MY_PAWN,
                     });
                 }
             }
@@ -468,7 +615,7 @@ impl MoveGenerator {
 
         for p in bishop_pinned.iter() {
             let square = BB::square(p);
-            if (b[Piece::WhiteQueen] & square).any() {
+            if (b[P::MY_QUEEN] & square).any() {
                 let attack = self.ray_attacks_positive(p, occupied, Direction::NW)
                     | self.ray_attacks_positive(p, occupied, Direction::SE);
                 let mut attacks = (attack & bishop_pinners).saturate() & attack;
@@ -480,11 +627,11 @@ impl MoveGenerator {
                     res.push(Move::Simple {
                         from: p,
                         to: m,
-                        piece: Piece::WhiteQueen,
+                        piece: P::MY_QUEEN,
                     })
                 }
             }
-            if (b[Piece::WhiteBishop] & square).any() {
+            if (b[P::MY_BISHOP] & square).any() {
                 let attack = self.ray_attacks_positive(p, occupied, Direction::NW)
                     | self.ray_attacks_positive(p, occupied, Direction::SE);
                 let mut attacks = (attack & bishop_pinners).saturate() & attack;
@@ -496,56 +643,57 @@ impl MoveGenerator {
                     res.push(Move::Simple {
                         from: p,
                         to: m,
-                        piece: Piece::WhiteBishop,
+                        piece: P::MY_BISHOP,
                     })
                 }
             }
 
-            if (b[Piece::WhitePawn] & square).any() {
-                let moves = ((square << 7) & bishop_pinners) | (square << 9 & bishop_pinners);
+            if (b[P::MY_PAWN] & square).any() {
+                let moves = P::pawn_attacks_left(square) & bishop_pinners
+                    | P::pawn_attacks_right(square) & bishop_pinners;
                 if moves.any() {
                     res.push(Move::Simple {
                         from: p,
                         to: moves.first_piece(),
-                        piece: Piece::WhitePawn,
+                        piece: P::MY_PAWN,
                     })
                 }
             }
         }
     }
 
-    fn attacked(&self, b: &Board, occupied: BB) -> BB {
+    fn attacked<P: Player>(&self, b: &Board, occupied: BB) -> BB {
         let mut attacked = BB::empty();
 
-        for p in b[Piece::BlackKing].iter() {
+        for p in b[P::THEIR_KING].iter() {
             attacked |= self.king_attacks[p]
         }
-        for p in b[Piece::BlackKnight].iter() {
+        for p in b[P::THEIR_KNIGHT].iter() {
             attacked |= self.knight_attacks[p]
         }
 
         let empty = !occupied;
-        let diagonal = b[Piece::BlackQueen] | b[Piece::BlackBishop];
+        let diagonal = b[P::THEIR_QUEEN] | b[P::THEIR_BISHOP];
         attacked |= fill_7::nw(diagonal, empty);
         attacked |= fill_7::ne(diagonal, empty);
         attacked |= fill_7::sw(diagonal, empty);
         attacked |= fill_7::se(diagonal, empty);
 
-        let straight = b[Piece::BlackQueen] | b[Piece::BlackRook];
+        let straight = b[P::THEIR_QUEEN] | b[P::THEIR_ROOK];
         attacked |= fill_7::n(straight, empty);
         attacked |= fill_7::w(straight, empty);
         attacked |= fill_7::s(straight, empty);
         attacked |= fill_7::e(straight, empty);
 
         let pawn_attacks =
-            (b[Piece::BlackPawn] & !BB::FILE_H) >> 7 | (b[Piece::BlackPawn] & !BB::FILE_A) >> 9;
+            P::pawn_attacks_left(b[P::THEIR_PAWN]) | P::pawn_attacks_right(b[P::THEIR_PAWN]);
         attacked | pawn_attacks
     }
 
-    fn pinned(&self, b: &Board, player: BB, occupied: BB) -> (BB, BB, BB, BB) {
-        let king_square = b[Piece::WhiteKing].first_piece();
+    fn pinned<P: Player>(&self, b: &Board, player: BB, occupied: BB) -> (BB, BB, BB, BB) {
+        let king_square = b[P::MY_KING].first_piece();
         let rook_pinners = self.xray_rook_attacks(king_square, player, occupied)
-            & (b[Piece::BlackRook] | b[Piece::BlackQueen]);
+            & (b[P::THEIR_ROOK] | b[P::THEIR_QUEEN]);
 
         let mut rook_pinned = BB::empty();
         for p in rook_pinners.iter() {
@@ -554,7 +702,7 @@ impl MoveGenerator {
         }
 
         let bishop_pinners = self.xray_bishop_attacks(king_square, player, occupied)
-            & (b[Piece::BlackBishop] | b[Piece::BlackQueen]);
+            & (b[P::THEIR_BISHOP] | b[P::THEIR_QUEEN]);
 
         let mut bishop_pinned = BB::empty();
         for p in bishop_pinners.iter() {
@@ -565,7 +713,7 @@ impl MoveGenerator {
         (rook_pinners, bishop_pinners, rook_pinned, bishop_pinned)
     }
 
-    fn pawn_moves(
+    fn pawn_moves<P: Player>(
         &self,
         b: &Board,
         occupied: BB,
@@ -573,57 +721,57 @@ impl MoveGenerator {
         opponent_pieces: BB,
         buffer: &mut Vec<Move>,
     ) {
-        let pawns = b[Piece::WhitePawn];
+        let pawns = b[P::MY_PAWN];
         let free_pawns = pawns & !pinned;
 
-        let left_pawn_attacks = ((free_pawns & !BB::FILE_A) << 9) & opponent_pieces;
-        let left_pawn_attacks_promote = left_pawn_attacks & BB::RANK_8;
-        let left_pawn_attacks = left_pawn_attacks & !BB::RANK_8;
+        let left_pawn_attacks = P::pawn_attacks_left(free_pawns) & opponent_pieces;
+        let left_pawn_attacks_promote = left_pawn_attacks & P::PROMOTE_RANK;
+        let left_pawn_attacks = left_pawn_attacks & !P::PROMOTE_RANK;
         for p in left_pawn_attacks.iter() {
             buffer.push(Move::Simple {
-                from: p - 9,
+                from: p - P::PAWN_ATTACK_LEFT,
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
         for p in left_pawn_attacks_promote.iter() {
-            Self::add_all_promotions(p, p - 9, buffer);
+            Self::add_all_promotions::<P>(p, p - P::PAWN_ATTACK_LEFT, buffer);
         }
 
-        let right_pawn_attacks = ((free_pawns & !BB::FILE_H) << 7) & opponent_pieces;
-        let right_pawn_attacks_promote = right_pawn_attacks & BB::RANK_8;
-        let right_pawn_attacks = right_pawn_attacks & !BB::RANK_8;
+        let right_pawn_attacks = P::pawn_attacks_right(free_pawns) & opponent_pieces;
+        let right_pawn_attacks_promote = right_pawn_attacks & P::PROMOTE_RANK;
+        let right_pawn_attacks = right_pawn_attacks & !P::PROMOTE_RANK;
         for p in right_pawn_attacks.iter() {
             buffer.push(Move::Simple {
-                from: p - 7,
+                from: p - P::PAWN_ATTACK_RIGHT,
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
         for p in right_pawn_attacks_promote.iter() {
-            Self::add_all_promotions(p, p - 7, buffer);
+            Self::add_all_promotions::<P>(p, p - P::PAWN_ATTACK_RIGHT, buffer);
         }
 
-        let pawn_moves = ((free_pawns & !pinned) << 8) & !occupied;
-        let pawn_moves_promote = right_pawn_attacks & BB::RANK_8;
-        let pawn_moves = pawn_moves & !BB::RANK_8;
+        let pawn_moves = P::pawn_move(free_pawns & !pinned) & !occupied;
+        let pawn_moves_promote = pawn_moves & P::PROMOTE_RANK;
+        let pawn_moves = pawn_moves & !P::PROMOTE_RANK;
         for p in pawn_moves.iter() {
             buffer.push(Move::Simple {
-                from: p - 8,
+                from: p - P::PAWN_MOVE,
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
         for p in pawn_moves_promote.iter() {
-            Self::add_all_promotions(p, p - 8, buffer);
+            Self::add_all_promotions::<P>(p, p - P::PAWN_MOVE, buffer);
         }
 
-        let double_pawn_moves = ((pawn_moves & BB::RANK_3) << 8) & !occupied;
+        let double_pawn_moves = P::pawn_move(pawn_moves & P::DOUBLE_MOVE_RANK) & !occupied;
         for p in double_pawn_moves.iter() {
             buffer.push(Move::Simple {
-                from: p - 16,
+                from: p - (P::PAWN_MOVE + P::PAWN_MOVE),
                 to: p,
-                piece: Piece::WhitePawn,
+                piece: P::MY_PAWN,
             });
         }
 
@@ -632,30 +780,30 @@ impl MoveGenerator {
         }
     }
 
-    fn add_all_promotions(to: Square, from: Square, buffer: &mut Vec<Move>) {
+    fn add_all_promotions<P: Player>(to: Square, from: Square, buffer: &mut Vec<Move>) {
         buffer.push(Move::Promote {
-            promote: Piece::WhiteBishop,
+            promote: P::MY_BISHOP,
             from,
             to,
         });
         buffer.push(Move::Promote {
-            promote: Piece::WhiteRook,
+            promote: P::MY_ROOK,
             from,
             to,
         });
         buffer.push(Move::Promote {
-            promote: Piece::WhiteKnight,
+            promote: P::MY_KNIGHT,
             from,
             to,
         });
         buffer.push(Move::Promote {
-            promote: Piece::WhiteQueen,
+            promote: P::MY_QUEEN,
             from,
             to,
         });
     }
 
-    fn sliding_pieces(
+    fn sliding_pieces<P: Player>(
         &self,
         b: &Board,
         occupied: BB,
@@ -663,7 +811,7 @@ impl MoveGenerator {
         player: BB,
         buffer: &mut Vec<Move>,
     ) {
-        for p in (b[Piece::WhiteBishop] & !pinned).iter() {
+        for p in (b[P::MY_BISHOP] & !pinned).iter() {
             let mut attacks = self.bishop_attacks(p, occupied);
             attacks &= !player;
 
@@ -671,24 +819,24 @@ impl MoveGenerator {
                 buffer.push(Move::Simple {
                     from: p,
                     to: m,
-                    piece: Piece::WhiteBishop,
+                    piece: P::MY_BISHOP,
                 })
             }
         }
 
-        for p in (b[Piece::WhiteRook] & !pinned).iter() {
+        for p in (b[P::MY_ROOK] & !pinned).iter() {
             let attacks = self.rook_attacks(p, occupied) & !player;
 
             for m in attacks.iter() {
                 buffer.push(Move::Simple {
                     from: p,
                     to: m,
-                    piece: Piece::WhiteRook,
+                    piece: P::MY_ROOK,
                 })
             }
         }
 
-        for p in (b[Piece::WhiteQueen] & !pinned).iter() {
+        for p in (b[P::MY_QUEEN] & !pinned).iter() {
             let attacks = (self.rook_attacks(p, occupied) & !player
                 | self.bishop_attacks(p, occupied))
                 & !player;
@@ -697,7 +845,7 @@ impl MoveGenerator {
                 buffer.push(Move::Simple {
                     from: p,
                     to: m,
-                    piece: Piece::WhiteQueen,
+                    piece: P::MY_QUEEN,
                 })
             }
         }

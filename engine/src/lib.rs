@@ -11,9 +11,12 @@ mod square;
 pub use square::Square;
 mod mov;
 pub use mov::Move;
+pub mod eval;
 
 use std::{
     fmt::{self, Debug},
+    iter::{ExactSizeIterator, Iterator},
+    mem,
     ops::{Index, IndexMut},
 };
 pub trait Player {
@@ -40,6 +43,7 @@ pub struct Board {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u8)]
 pub enum Piece {
     WhiteKing = 0,
     WhiteQueen,
@@ -53,6 +57,49 @@ pub enum Piece {
     BlackKnight,
     BlackRook,
     BlackPawn,
+}
+
+impl Piece {
+    pub fn to(self, end: Piece) -> PieceIter {
+        PieceIter {
+            cur: self as u8,
+            end: end as u8,
+        }
+    }
+
+    pub fn flip(self, v: bool) -> Self {
+        let val = (self as u8 + (v as u8 * 6)) % 12;
+        unsafe { mem::transmute(val) }
+    }
+}
+
+pub struct PieceIter {
+    cur: u8,
+    end: u8,
+}
+
+impl Iterator for PieceIter {
+    type Item = Piece;
+
+    fn next(&mut self) -> Option<Piece> {
+        if self.cur > self.end {
+            return None;
+        }
+        let res = unsafe { std::mem::transmute(self.cur) };
+        self.cur += 1;
+        Some(res)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let res = self.len();
+        (res, Some(res))
+    }
+}
+
+impl ExactSizeIterator for PieceIter {
+    fn len(&self) -> usize {
+        (self.end - self.cur + 1) as usize
+    }
 }
 
 impl Piece {
@@ -79,23 +126,14 @@ impl Piece {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct UnmakeMove {
+    mov: Move,
+    taken: Option<Piece>,
+    state: ExtraState,
+}
+
 impl Board {
-    /*
-    const WHITE_KING: usize = 0;
-    const WHITE_QUEEN: usize = 1;
-    const WHITE_BISHOP: usize = 2;
-    const WHITE_KNIGHT: usize = 3;
-    const WHITE_ROOK: usize = 4;
-    const WHITE_PAWN: usize = 5;
-
-    const BLACK_KING: usize = 6;
-    const BLACK_QUEEN: usize = 7;
-    const BLACK_BISHOP: usize = 8;
-    const BLACK_KNIGHT: usize = 9;
-    const BLACK_ROOK: usize = 10;
-    const BLACK_PAWN: usize = 11;
-    */
-
     pub const fn empty() -> Self {
         Board {
             pieces: [BB::empty(); 12],
@@ -104,10 +142,9 @@ impl Board {
     }
 
     pub fn flip(mut self) -> Self {
-        for i in 0..12 {
-            self.pieces[i] = self.pieces[i].flip()
-        }
         for i in 0..6 {
+            self.pieces[i].flip();
+            self.pieces[i + 6].flip();
             self.pieces[i] ^= self.pieces[i + 6];
             self.pieces[i + 6] ^= self.pieces[i];
             self.pieces[i] ^= self.pieces[i + 6];
@@ -116,41 +153,140 @@ impl Board {
         return self;
     }
 
-    pub fn make_move(mut self, m: Move) -> Self {
+    pub fn make_move(&mut self, m: Move) -> UnmakeMove {
+        let white_turn = self.white_turn();
+
         match m {
             Move::Simple { to, from, piece } => {
-                self[piece] ^= BB::square(from) | BB::square(to);
-                for i in 6..12 {
-                    self.pieces[i] &= !BB::square(to);
+                let mut taken = None;
+                let state = self.state;
+                let to_square = BB::square(to);
+                for p in Piece::WhiteQueen
+                    .flip(white_turn)
+                    .to(Piece::WhitePawn.flip(white_turn))
+                {
+                    if (self[p] & to_square).any() {
+                        taken = Some(p);
+                    }
+                    self[p] &= !to_square;
                 }
+                self[piece] ^= BB::square(from) | to_square;
+                self.state &= !(ExtraState::fill(to == Square::H8) & ExtraState::BLACK_KING_CASTLE);
+                self.state &=
+                    !(ExtraState::fill(to == Square::A8) & ExtraState::BLACK_QUEEN_CASTLE);
+                self.state &= !(ExtraState::fill(to == Square::H1) & ExtraState::WHITE_KING_CASTLE);
+                self.state &=
+                    !(ExtraState::fill(to == Square::A1) & ExtraState::WHITE_QUEEN_CASTLE);
+                self.state = self.state.make_move();
+                return UnmakeMove {
+                    mov: m,
+                    taken,
+                    state,
+                };
             }
             Move::Promote { to, from, promote } => {
                 self[Piece::WhitePawn] &= !BB::square(from);
-                for i in 6..12 {
-                    self.pieces[i] &= !BB::square(to);
+                let mut taken = None;
+                let state = self.state;
+                let to_square = BB::square(to);
+                for p in Piece::WhiteQueen
+                    .flip(white_turn)
+                    .to(Piece::WhitePawn.flip(white_turn))
+                {
+                    if (self[p] & to_square).any() {
+                        taken = Some(p);
+                    }
+                    self[p] &= !to_square;
                 }
+                self.state &= !(ExtraState::fill(to == Square::H8) & ExtraState::BLACK_KING_CASTLE);
+                self.state &=
+                    !(ExtraState::fill(to == Square::A8) & ExtraState::BLACK_QUEEN_CASTLE);
+                self.state &= !(ExtraState::fill(to == Square::H1) & ExtraState::WHITE_KING_CASTLE);
+                self.state &=
+                    !(ExtraState::fill(to == Square::A1) & ExtraState::WHITE_QUEEN_CASTLE);
                 self[promote] |= BB::square(to);
+                self.state = self.state.make_move();
+                return UnmakeMove {
+                    mov: m,
+                    taken,
+                    state,
+                };
             }
             Move::Castle { king } => {
-                if king {
-                    self[Piece::WhiteRook] ^= BB::square(Square::H1) | BB::square(Square::F1);
-                    self[Piece::WhiteKing] ^= BB::square(Square::E1) | BB::square(Square::G1);
+                let state = self.state;
+                if white_turn {
+                    self[Piece::WhiteRook] ^= BB::fill(king)
+                        & (BB::square(Square::H1) | BB::square(Square::F1))
+                        | BB::fill(!king) & (BB::square(Square::A1) | BB::square(Square::D1));
+
+                    self[Piece::WhiteKing] ^= BB::fill(king)
+                        & (BB::square(Square::E1) | BB::square(Square::G1))
+                        | BB::fill(!king) & (BB::square(Square::E1) | BB::square(Square::C1));
+                    self.state &= !(ExtraState::BLACK_KING_CASTLE | ExtraState::BLACK_QUEEN_CASTLE);
                 } else {
-                    self[Piece::WhiteRook] ^= BB::square(Square::A1) | BB::square(Square::D1);
-                    self[Piece::WhiteKing] ^= BB::square(Square::E1) | BB::square(Square::C1);
+                    self[Piece::BlackRook] ^= BB::fill(king)
+                        & (BB::square(Square::H8) | BB::square(Square::F8))
+                        | BB::fill(!king) & (BB::square(Square::A8) | BB::square(Square::D8));
+
+                    self[Piece::BlackKing] ^= BB::fill(king)
+                        & (BB::square(Square::E8) | BB::square(Square::G8))
+                        | BB::fill(!king) & (BB::square(Square::E8) | BB::square(Square::C8));
+                    self.state &= !(ExtraState::WHITE_KING_CASTLE | ExtraState::WHITE_QUEEN_CASTLE);
+                }
+                self.state = self.state.make_move();
+                return UnmakeMove {
+                    mov: m,
+                    taken: None,
+                    state,
+                };
+            }
+            _ => todo!(),
+        }
+    }
+
+    pub fn unmake_move(&mut self, mov: UnmakeMove) {
+        self.state = mov.state;
+        match mov.mov {
+            Move::Simple { from, to, piece } => {
+                self[piece] ^= BB::square(from) | BB::square(to);
+                if let Some(x) = mov.taken {
+                    self[x] |= BB::square(to);
+                }
+            }
+            Move::Castle { king } => {
+                if self.state.white_move() {
+                    self[Piece::WhiteRook] ^= BB::fill(king)
+                        & (BB::square(Square::H1) | BB::square(Square::F1))
+                        | BB::fill(!king) & (BB::square(Square::A1) | BB::square(Square::D1));
+
+                    self[Piece::WhiteKing] ^= BB::fill(king)
+                        & (BB::square(Square::E1) | BB::square(Square::G1))
+                        | BB::fill(!king) & (BB::square(Square::E1) | BB::square(Square::C1));
+                } else {
+                    self[Piece::BlackRook] ^= BB::fill(king)
+                        & (BB::square(Square::H8) | BB::square(Square::F8))
+                        | BB::fill(!king) & (BB::square(Square::A8) | BB::square(Square::D8));
+
+                    self[Piece::BlackKing] ^= BB::fill(king)
+                        & (BB::square(Square::E8) | BB::square(Square::G8))
+                        | BB::fill(!king) & (BB::square(Square::E8) | BB::square(Square::C8));
+                }
+            }
+            Move::Promote { promote, from, to } => {
+                self[promote] &= !BB::square(to);
+                let white_turn = self.state.white_move();
+                self[Piece::BlackPawn.flip(white_turn)] |= BB::square(from);
+                if let Some(x) = mov.taken {
+                    self[x] |= BB::square(to);
                 }
             }
             _ => todo!(),
         }
-        self.state = self.state.make_move();
-
-        self
     }
 
     pub fn on(&self, square: Square) -> Option<Piece> {
         let bb = BB::square(square);
-        for i in 0..12 {
-            let piece = Piece::from_u8(i);
+        for piece in Piece::WhiteKing.to(Piece::BlackPawn) {
             if (self[piece] & bb).any() {
                 return Some(piece);
             }

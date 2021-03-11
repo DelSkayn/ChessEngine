@@ -1,14 +1,17 @@
 #![allow(dead_code)]
 
 use engine::Board;
-use ggez::{conf::WindowMode, event, graphics, ContextBuilder};
+use ggez::{
+    conf::{WindowMode, WindowSetup},
+    event, graphics, ContextBuilder,
+};
 use std::{env, path};
 
 mod board;
 mod game;
 use board::RenderBoard;
 mod player;
-use player::MousePlayer;
+use player::{MousePlayer, RandomPlayer, ThreadedEval};
 
 fn main() {
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -32,6 +35,7 @@ fn main() {
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
         .window_mode(WindowMode::default().resizable(true))
+        .window_setup(WindowSetup::default().title("devapp"))
         .build()
         .expect("aieee, could not create ggez context!");
 
@@ -43,8 +47,11 @@ fn main() {
         &mut ctx,
         dbg!(board),
         true,
-        Box::new(MousePlayer::new(true)),
-        Box::new(MousePlayer::new(false)),
+        Box::new(RandomPlayer::new()),
+        Box::new(RandomPlayer::new()),
+        //Box::new(MousePlayer::new(true)),
+        //Box::new(MousePlayer::new(false)),
+        //Box::new(ThreadedEval::new()),
     );
 
     // Run!

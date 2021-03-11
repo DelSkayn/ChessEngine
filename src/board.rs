@@ -1,4 +1,4 @@
-use engine::{Board, Move, MoveGenerator, Piece, Square, BB};
+use engine::{Board, Move, Piece, Square, BB};
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect},
     input,
@@ -17,9 +17,6 @@ pub struct RenderBoard {
 
 impl RenderBoard {
     pub fn new(board: Board) -> Self {
-        let move_gen = MoveGenerator::new();
-        let mut moves = Vec::new();
-        move_gen.gen_moves(&board, &mut moves);
         RenderBoard {
             board,
             selected: None,
@@ -144,7 +141,7 @@ impl RenderBoard {
     }
 
     pub fn make_move(&mut self, mov: Move) {
-        self.board = self.board.make_move(mov);
+        self.board.make_move(mov);
         self.clear_drag();
     }
 

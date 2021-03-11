@@ -310,6 +310,7 @@ dependencies = [
  "engine",
  "euclid",
  "ggez",
+ "rand 0.8.3",
  "thiserror",
 ]
 

@@ -2,7 +2,7 @@ use super::Square;
 
 use std::{
     fmt::{self, Debug},
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign},
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not},
 };
 
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -22,6 +22,10 @@ impl ExtraState {
 
     pub const fn empty() -> Self {
         ExtraState(ExtraState::EN_PASSANT_PRESENT)
+    }
+
+    pub const fn all() -> Self {
+        ExtraState(0xFFFF)
     }
 
     #[inline]
@@ -69,6 +73,10 @@ impl ExtraState {
         let res = Self(castle_w | castle_b | en_passant_present | en_passant | black_move);
         res
     }
+
+    pub fn fill(v: bool) -> Self {
+        ExtraState((v as u16).wrapping_sub(1))
+    }
 }
 
 impl BitAndAssign for ExtraState {
@@ -110,6 +118,14 @@ impl BitXor for ExtraState {
 
     fn bitxor(self, rhs: Self) -> Self::Output {
         ExtraState(self.0 ^ rhs.0)
+    }
+}
+
+impl Not for ExtraState {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        ExtraState(!self.0)
     }
 }
 
