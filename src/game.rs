@@ -21,7 +21,6 @@ pub struct Chess {
     castle_sound: Source,
     move_sound: Source,
     play_move: PlayedMove,
-    white_turn: bool,
     white: Box<dyn Player>,
     black: Box<dyn Player>,
 }
@@ -30,12 +29,11 @@ impl Chess {
     pub fn new(
         ctx: &mut Context,
         board: Board,
-        white_turn: bool,
         mut white: Box<dyn Player>,
         mut black: Box<dyn Player>,
     ) -> Chess {
         let board = RenderBoard::new(board);
-        if white_turn {
+        if board.board.white_turn() {
             white.start_turn(&board);
         } else {
             black.start_turn(&board);
@@ -45,25 +43,41 @@ impl Chess {
             castle_sound: Source::new(ctx, "/castle.ogg").unwrap(),
             move_sound: Source::new(ctx, "/move.ogg").unwrap(),
             play_move: PlayedMove::Didnt,
-            white_turn,
             white,
             board,
             black,
         }
     }
+
+    fn white_turn(&self) -> bool {
+        self.board.board.white_turn()
+    }
 }
 
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        self.play_move = if self.white_turn {
+        match self.play_move {
+            PlayedMove::Didnt => {}
+            PlayedMove::Castle => {
+                self.castle_sound.play(ctx)?;
+                self.play_move = PlayedMove::Didnt
+            }
+            PlayedMove::Move => {
+                println!("MOVE");
+                self.move_sound.play(ctx)?;
+                self.play_move = PlayedMove::Didnt
+            }
+        }
+
+        self.play_move = if self.white_turn() {
             self.white.update(&mut self.board)
         } else {
             self.black.update(&mut self.board)
         };
 
         if self.play_move != PlayedMove::Didnt {
-            self.white_turn = !self.white_turn;
-            if self.white_turn {
+            println!("FEN: {}", self.board.board.to_fen());
+            if self.white_turn() {
                 self.white.start_turn(&self.board);
             } else {
                 self.black.start_turn(&self.board);
@@ -77,10 +91,12 @@ impl EventHandler for Chess {
                 self.play_move = PlayedMove::Didnt
             }
             PlayedMove::Move => {
+                println!("MOVE");
                 self.move_sound.play(ctx)?;
                 self.play_move = PlayedMove::Didnt
             }
         }
+
         Ok(())
     }
 
@@ -95,7 +111,7 @@ impl EventHandler for Chess {
     }
 
     fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
-        if self.white_turn {
+        if self.white_turn() {
             self.white
                 .mouse_button_down_event(button, x, y, &mut self.board);
         } else {
@@ -105,7 +121,7 @@ impl EventHandler for Chess {
     }
 
     fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
-        self.play_move = if self.white_turn {
+        self.play_move = if self.white_turn() {
             self.white
                 .mouse_button_up_event(button, x, y, &mut self.board)
         } else {
@@ -114,8 +130,8 @@ impl EventHandler for Chess {
         };
 
         if self.play_move != PlayedMove::Didnt {
-            self.white_turn = !self.white_turn;
-            if self.white_turn {
+            println!("FEN: {}", self.board.board.to_fen());
+            if self.white_turn() {
                 self.white.start_turn(&self.board);
             } else {
                 self.black.start_turn(&self.board);
@@ -124,7 +140,7 @@ impl EventHandler for Chess {
     }
 
     fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, dx: f32, dy: f32) {
-        if self.white_turn {
+        if self.white_turn() {
             self.white.mouse_motion_event(x, y, dx, dy, &mut self.board);
         } else {
             self.black.mouse_motion_event(x, y, dx, dy, &mut self.board);

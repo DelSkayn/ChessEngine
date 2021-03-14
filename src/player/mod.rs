@@ -51,17 +51,15 @@ impl Player for NullPlayer {}
 pub struct MousePlayer {
     move_gen: MoveGenerator,
     possible_moves: Vec<Move>,
-    white: bool,
     holding: Option<Square>,
     dragging: bool,
 }
 
 impl MousePlayer {
-    pub fn new(white: bool) -> Self {
+    pub fn new() -> Self {
         MousePlayer {
             move_gen: MoveGenerator::new(),
             possible_moves: Vec::new(),
-            white,
             holding: None,
             dragging: false,
         }
@@ -73,6 +71,7 @@ impl Player for MousePlayer {
         self.possible_moves.clear();
         self.move_gen
             .gen_moves(&board.board, &mut self.possible_moves);
+        println!("possible moves: {:?}", self.possible_moves)
     }
 
     fn mouse_motion_event(
@@ -100,7 +99,7 @@ impl Player for MousePlayer {
             if let Some(x) = board.square([x, y]) {
                 if board
                     .on(x)
-                    .map(|x| x.white() == self.white)
+                    .map(|x| x.white() == board.board.white_turn())
                     .unwrap_or(false)
                 {
                     board.select(x);
@@ -127,7 +126,6 @@ impl Player for MousePlayer {
             board.clear_drag();
             if let Some(b_from) = self.holding.take() {
                 if let Some(b_to) = board.square([x, y]) {
-                    dbg!(&self.possible_moves);
                     for m in self.possible_moves.iter().copied() {
                         match m {
                             Move::Simple { from, to, .. } => {

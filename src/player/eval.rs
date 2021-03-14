@@ -16,7 +16,7 @@ use std::{
 
 pub struct Context {
     run: AtomicBool,
-    best: Mutex<Option<BestMove>>,
+    best: Mutex<BestMove>,
 }
 
 pub struct ThreadedEval {
@@ -29,7 +29,7 @@ impl ThreadedEval {
     pub fn new() -> Self {
         let context = Arc::new(Context {
             run: AtomicBool::new(true),
-            best: Mutex::new(None),
+            best: Mutex::new(Default::default()),
         });
         let (sender, recv) = mpsc::channel();
 
@@ -55,7 +55,13 @@ impl ThreadedEval {
                         "{}:{:?}={} ({})",
                         b.depth, b.mov, b.value, b.nodes_evaluated
                     );
-                    *context.best.lock().unwrap() = Some(b)
+                    let mut l = context.best.lock().unwrap();
+                    if let Some(x) = b.mov {
+                        l.mov = Some(x);
+                    }
+                    l.depth = b.depth;
+                    l.value = b.value;
+                    l.nodes_evaluated = b.nodes_evaluated;
                 }
                 context.run.load(Ordering::Acquire)
             });
@@ -70,24 +76,17 @@ impl Player for ThreadedEval {
     fn update(&mut self, board: &mut RenderBoard) -> PlayedMove {
         if self.time.unwrap().elapsed() > Duration::from_secs(1) {
             self.context.run.store(false, Ordering::Release);
-            let mov = self
-                .context
-                .best
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .mov
-                .unwrap();
-            board.make_move(mov);
-            return PlayedMove::Move;
+            if let Some(mov) = self.context.best.lock().unwrap().mov {
+                board.make_move(mov);
+                return PlayedMove::Move;
+            }
         }
         PlayedMove::Didnt
     }
 
     fn start_turn(&mut self, board: &RenderBoard) {
-        *self.context.best.lock().unwrap() = None;
-        self.sender.send(board.board).unwrap();
+        self.context.best.lock().unwrap().mov = None;
+        self.sender.send(board.board.clone()).unwrap();
         self.time = Some(Instant::now());
     }
 }

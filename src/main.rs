@@ -6,14 +6,24 @@ use ggez::{
     event, graphics, ContextBuilder,
 };
 use std::{env, path};
+use structopt::StructOpt;
 
 mod board;
 mod game;
 use board::RenderBoard;
 mod player;
-use player::{MousePlayer, RandomPlayer, ThreadedEval};
+use player::{MousePlayer, Player, ThreadedEval};
+
+#[derive(Debug, StructOpt)]
+pub struct Opt {
+    #[structopt(short, long)]
+    self_play: bool,
+    fen: Option<String>,
+}
 
 fn main() {
+    let args = Opt::from_args();
+
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let mut path = path::PathBuf::from(manifest_dir);
         path.push("resources");
@@ -22,13 +32,17 @@ fn main() {
         path::PathBuf::from("./resources")
     };
 
-    let mut args = env::args();
-    args.next();
-
-    let board = if let Some(x) = args.next() {
+    let board = if let Some(x) = args.fen {
         Board::from_fen(&x).unwrap()
     } else {
         Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
+    };
+
+    let white = Box::new(MousePlayer::new());
+    let black: Box<dyn Player> = if args.self_play {
+        Box::new(MousePlayer::new())
+    } else {
+        Box::new(ThreadedEval::new())
     };
 
     // Make a Context.
@@ -43,16 +57,7 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = game::Chess::new(
-        &mut ctx,
-        dbg!(board),
-        true,
-        Box::new(RandomPlayer::new()),
-        Box::new(RandomPlayer::new()),
-        //Box::new(MousePlayer::new(true)),
-        //Box::new(MousePlayer::new(false)),
-        //Box::new(ThreadedEval::new()),
-    );
+    let my_game = game::Chess::new(&mut ctx, dbg!(board), white, black);
 
     // Run!
     event::run(ctx, event_loop, my_game)

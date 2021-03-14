@@ -156,4 +156,70 @@ impl Board {
 
         return Some(Square::new(row * 8 + column));
     }
+
+    pub fn to_fen(&self) -> String {
+        let mut res = String::new();
+
+        for rank in 0..8 {
+            let mut count = 0;
+            let rank = 7 - rank;
+            for file in 0..8 {
+                if let Some(x) = self.on(Square::from_file_rank(file, rank)) {
+                    if count > 0 {
+                        res.push_str(&format!("{}", count));
+                        count = 0;
+                    }
+                    match x {
+                        Piece::WhiteKing => res.push('K'),
+                        Piece::BlackKing => res.push('k'),
+                        Piece::WhiteQueen => res.push('Q'),
+                        Piece::BlackQueen => res.push('q'),
+                        Piece::WhiteRook => res.push('R'),
+                        Piece::BlackRook => res.push('r'),
+                        Piece::WhiteBishop => res.push('B'),
+                        Piece::BlackBishop => res.push('b'),
+                        Piece::WhiteKnight => res.push('N'),
+                        Piece::BlackKnight => res.push('n'),
+                        Piece::WhitePawn => res.push('P'),
+                        Piece::BlackPawn => res.push('p'),
+                    };
+                } else {
+                    count += 1;
+                }
+            }
+            if count > 0 {
+                res.push_str(&format!("{}", count));
+            }
+            if rank != 0 {
+                res.push('/');
+            }
+        }
+        res.push(' ');
+        if self.white_turn() {
+            res.push('w');
+        } else {
+            res.push('b');
+        }
+        res.push(' ');
+        let len = res.len();
+        if (self.state & ExtraState::WHITE_KING_CASTLE).any() {
+            res.push('K');
+        }
+        if (self.state & ExtraState::WHITE_QUEEN_CASTLE).any() {
+            res.push('Q');
+        }
+        if (self.state & ExtraState::BLACK_KING_CASTLE).any() {
+            res.push('k');
+        }
+        if (self.state & ExtraState::BLACK_QUEEN_CASTLE).any() {
+            res.push('q');
+        }
+        if len == res.len() {
+            res.push('-');
+        }
+        res.push(' ');
+        res.push('-');
+
+        res
+    }
 }

@@ -5,6 +5,7 @@ pub struct Eval {
     nodes_evaluated: usize,
 }
 
+#[derive(Default)]
 pub struct BestMove {
     pub mov: Option<Move>,
     pub value: i32,
@@ -42,21 +43,27 @@ impl Eval {
         self.gen.gen_moves(&b, &mut buffers.root);
         self.nodes_evaluated = 0;
         let mut depth = 1;
-        let mut b = *b;
+        let mut b = b.clone();
         loop {
             for _ in buffers.depth.len()..depth {
                 buffers.depth.push(Vec::new());
             }
 
+            let mobility = buffers.root.len() as i32;
+
             let mut value = -i32::MAX;
             let mut best_move = None;
             for m in buffers.root.iter().copied() {
-                let tmp = b;
                 let undo = b.make_move(m);
-                let new_value =
-                    self.negamax(&mut b, &mut buffers.depth[0..depth], value, i32::MAX, 1);
+                let new_value = -self.negamax(
+                    &mut b,
+                    &mut buffers.depth[0..depth],
+                    value,
+                    i32::MAX,
+                    1,
+                    mobility,
+                );
                 b.unmake_move(undo);
-                assert!(tmp == b, "{:?}{:?} => move: {:?} {:?}", tmp, b, m, undo);
                 if new_value > value {
                     best_move = Some(m);
                     value = new_value;
@@ -89,27 +96,28 @@ impl Eval {
         mut alpha: i32,
         beta: i32,
         color: i32,
+        prev_mobility: i32,
     ) -> i32 {
         let (buffer, rest) = buffers.split_first_mut().unwrap();
         buffer.clear();
         self.gen.gen_moves(b, buffer);
+
+        let mobility = buffer.len() as i32;
         //println!("{:?}", buffer);
         if buffer.is_empty() {
             return -i32::MAX;
         }
 
         if rest.is_empty() {
-            return color * self.eval_board(b);
+            return color * self.eval_board(b, color * (mobility - prev_mobility));
         }
 
         let mut value = -i32::MAX;
         //dbg!(buffer.len());
         for m in buffer.iter().copied() {
-            let tmp = *b;
             let undo = b.make_move(m);
-            value = value.max(-self.negamax(b, rest, -beta, -alpha, -color));
+            value = value.max(-self.negamax(b, rest, -beta, -alpha, -color, mobility));
             b.unmake_move(undo);
-            assert!(tmp == *b, "{:?}{:?} => move: {:?} {:?}", tmp, b, m, undo);
             alpha = alpha.max(value);
             if alpha >= beta {
                 break;
@@ -119,7 +127,7 @@ impl Eval {
         return value;
     }
 
-    pub fn eval_board(&mut self, b: &Board) -> i32 {
+    pub fn eval_board(&mut self, b: &Board, mobility: i32) -> i32 {
         self.nodes_evaluated += 1;
 
         let piece_value = (b[Piece::WhiteQueen].count() as i32
@@ -134,6 +142,6 @@ impl Eval {
             + (b[Piece::WhitePawn].count() as i32 - b[Piece::BlackPawn].count() as i32)
                 * Self::PAWN_VALUE;
 
-        piece_value
+        piece_value + mobility
     }
 }

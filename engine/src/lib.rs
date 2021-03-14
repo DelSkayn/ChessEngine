@@ -35,13 +35,6 @@ pub trait Player {
     const OP_PAWN: u8;
 }
 
-#[derive(Eq, PartialEq, Clone, Copy)]
-pub struct Board {
-    pieces: [BB; 12],
-
-    state: ExtraState,
-}
-
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 #[repr(u8)]
 pub enum Piece {
@@ -126,11 +119,26 @@ impl Piece {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct UnmakeMove {
     mov: Move,
     taken: Option<Piece>,
     state: ExtraState,
+}
+
+impl fmt::Debug for UnmakeMove {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.mov)
+    }
+}
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct Board {
+    pieces: [BB; 12],
+
+    state: ExtraState,
+
+    moves: Vec<UnmakeMove>,
 }
 
 impl Board {
@@ -138,6 +146,36 @@ impl Board {
         Board {
             pieces: [BB::empty(); 12],
             state: ExtraState::empty(),
+            moves: Vec::new(),
+        }
+    }
+
+    pub fn assert_valid(&self) {
+        assert_eq!(
+            self[Piece::WhiteKing].count(),
+            1,
+            "{:?}\n Missing a white king",
+            self
+        );
+        assert_eq!(
+            self[Piece::BlackKing].count(),
+            1,
+            "{:?}\n Missing a black king",
+            self
+        );
+        for pa in Piece::WhiteKing.to(Piece::BlackPawn) {
+            for pb in Piece::WhiteKing.to(pa) {
+                if pa == pb {
+                    continue;
+                }
+                assert!(
+                    (self[pa] & self[pb]).none(),
+                    "{:?}\n Overlap in bitboards: {:?} {:?}",
+                    self,
+                    pa,
+                    pb
+                );
+            }
         }
     }
 
@@ -178,14 +216,16 @@ impl Board {
                 self.state &=
                     !(ExtraState::fill(to == Square::A1) & ExtraState::WHITE_QUEEN_CASTLE);
                 self.state = self.state.make_move();
-                return UnmakeMove {
+                let res = UnmakeMove {
                     mov: m,
                     taken,
                     state,
                 };
+                self.moves.push(res);
+                self.assert_valid();
+                res
             }
             Move::Promote { to, from, promote } => {
-                self[Piece::WhitePawn] &= !BB::square(from);
                 let mut taken = None;
                 let state = self.state;
                 let to_square = BB::square(to);
@@ -198,6 +238,7 @@ impl Board {
                     }
                     self[p] &= !to_square;
                 }
+                self[Piece::BlackPawn.flip(white_turn)] &= !BB::square(from);
                 self.state &= !(ExtraState::fill(to == Square::H8) & ExtraState::BLACK_KING_CASTLE);
                 self.state &=
                     !(ExtraState::fill(to == Square::A8) & ExtraState::BLACK_QUEEN_CASTLE);
@@ -206,11 +247,14 @@ impl Board {
                     !(ExtraState::fill(to == Square::A1) & ExtraState::WHITE_QUEEN_CASTLE);
                 self[promote] |= BB::square(to);
                 self.state = self.state.make_move();
-                return UnmakeMove {
+                let res = UnmakeMove {
                     mov: m,
                     taken,
                     state,
                 };
+                self.moves.push(res);
+                self.assert_valid();
+                res
             }
             Move::Castle { king } => {
                 let state = self.state;
@@ -234,17 +278,21 @@ impl Board {
                     self.state &= !(ExtraState::WHITE_KING_CASTLE | ExtraState::WHITE_QUEEN_CASTLE);
                 }
                 self.state = self.state.make_move();
-                return UnmakeMove {
+                let res = UnmakeMove {
                     mov: m,
                     taken: None,
                     state,
                 };
+                self.moves.push(res);
+                self.assert_valid();
+                res
             }
             _ => todo!(),
         }
     }
 
     pub fn unmake_move(&mut self, mov: UnmakeMove) {
+        assert_eq!(self.moves.pop(), Some(mov));
         self.state = mov.state;
         match mov.mov {
             Move::Simple { from, to, piece } => {
@@ -328,6 +376,7 @@ impl Debug for Board {
             .field("black_rook", &self[Piece::BlackRook])
             .field("black_pawn", &self[Piece::BlackPawn])
             .field("state", &self.state)
+            .field("moves", &self.moves)
             .finish()
     }
 }
