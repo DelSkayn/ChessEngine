@@ -45,7 +45,10 @@ impl Player for RandomPlayer {
 
         board.clear_highlight();
         match mov {
-            Move::Simple { from, to, .. } => {
+            Move::Quiet{ from, to, .. } => {
+                board.highlight(from, to);
+            }
+            Move::Capture{ from, to, .. } => {
                 board.highlight(from, to);
             }
             _ => {}

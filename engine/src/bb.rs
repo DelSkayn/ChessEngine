@@ -30,8 +30,23 @@ impl BB {
     pub const RANK_7: BB = BB(0xff << 48);
     pub const RANK_8: BB = BB(0xff << 56);
 
-    pub const B8: BB = BB(0x8000_0000_0000_0000);
-    pub const A1: BB = BB(1);
+    pub const A1: BB = BB::square(Square::A1);
+    pub const B1: BB = BB::square(Square::B1);
+    pub const C1: BB = BB::square(Square::C1);
+    pub const D1: BB = BB::square(Square::D1);
+    pub const E1: BB = BB::square(Square::E1);
+    pub const F1: BB = BB::square(Square::F1);
+    pub const G1: BB = BB::square(Square::G1);
+    pub const H1: BB = BB::square(Square::H1);
+
+    pub const A8: BB = BB::square(Square::A8);
+    pub const B8: BB = BB::square(Square::B8);
+    pub const C8: BB = BB::square(Square::C8);
+    pub const D8: BB = BB::square(Square::D8);
+    pub const E8: BB = BB::square(Square::E8);
+    pub const F8: BB = BB::square(Square::F8);
+    pub const G8: BB = BB::square(Square::G8);
+    pub const H8: BB = BB::square(Square::H8);
 
     pub const WHITE_KING_CASTLE_MASK: BB = BB(0b1100000);
     pub const WHITE_QUEEN_CASTLE_MASK: BB = BB(0b1110);

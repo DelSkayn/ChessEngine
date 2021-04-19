@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use engine::Board;
+use engine::{hash::Hasher, Board};
 use ggez::{
     conf::{WindowMode, WindowSetup},
     event, graphics, ContextBuilder,
@@ -32,17 +32,19 @@ fn main() {
         path::PathBuf::from("./resources")
     };
 
+    let hasher = Hasher::new();
+
     let board = if let Some(x) = args.fen {
-        Board::from_fen(&x).unwrap()
+        Board::from_fen(&x, &hasher).unwrap()
     } else {
-        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
+        Board::start_position()
     };
 
     let white = Box::new(MousePlayer::new());
     let black: Box<dyn Player> = if args.self_play {
         Box::new(MousePlayer::new())
     } else {
-        Box::new(ThreadedEval::new())
+        Box::new(ThreadedEval::new(hasher.clone()))
     };
 
     // Make a Context.
@@ -57,7 +59,7 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = game::Chess::new(&mut ctx, dbg!(board), white, black);
+    let my_game = game::Chess::new(&mut ctx, board, hasher, white, black);
 
     // Run!
     event::run(ctx, event_loop, my_game)

@@ -1,8 +1,8 @@
-use super::*;
+use crate::{hash::Hasher, Board, ExtraState, Piece, Square};
 use anyhow::{anyhow, bail, ensure, Result};
 
 impl Board {
-    pub fn from_fen(fen: &str) -> Result<Self> {
+    pub fn from_fen(fen: &str, hasher: &Hasher) -> Result<Self> {
         let mut board = Board::empty();
 
         let mut column = 0;
@@ -66,7 +66,7 @@ impl Board {
         if let Some(x) = iterator.next() {
             match x {
                 'w' => {}
-                'b' => board.state |= ExtraState::BLACK_MOVE,
+                'b' => board.state.black_turn = true,
                 x => bail!("invalid character '{}', expected on of 'w', 'b'", x),
             }
         } else {
@@ -99,21 +99,21 @@ impl Board {
                 Some('K') => {
                     ensure!(cnt == 0, "invalid order castle rights");
                     cnt = 1;
-                    board.state |= ExtraState::WHITE_KING_CASTLE;
+                    board.state.castle |= ExtraState::WHITE_KING_CASTLE;
                 }
                 Some('Q') => {
                     ensure!(cnt <= 1, "invalid order castle rights");
                     cnt = 2;
-                    board.state |= ExtraState::WHITE_QUEEN_CASTLE;
+                    board.state.castle |= ExtraState::WHITE_QUEEN_CASTLE;
                 }
                 Some('k') => {
                     ensure!(cnt <= 2, "invalid order castle rights");
                     cnt = 3;
-                    board.state |= ExtraState::BLACK_KING_CASTLE;
+                    board.state.castle |= ExtraState::BLACK_KING_CASTLE;
                 }
                 Some('q') => {
                     cnt = 4;
-                    board.state |= ExtraState::BLACK_QUEEN_CASTLE;
+                    board.state.castle |= ExtraState::BLACK_QUEEN_CASTLE;
                 }
                 Some(x) => {
                     bail!("invalid character '{}'", x);
@@ -129,7 +129,7 @@ impl Board {
             Some(c) => {
                 if let Some(r) = iterator.next() {
                     let idx = Self::postion_to_square(c, r).ok_or(anyhow!("invalid position"))?;
-                    board.state = board.state.set_en_passant(idx);
+                    board.state.en_passant = idx.file();
                 } else {
                     bail!("missing characters")
                 }
@@ -138,6 +138,8 @@ impl Board {
                 bail!("missing characters")
             }
         }
+
+        board.hash = hasher.build(board.pieces, board.state);
 
         Ok(board)
     }
@@ -202,16 +204,16 @@ impl Board {
         }
         res.push(' ');
         let len = res.len();
-        if (self.state & ExtraState::WHITE_KING_CASTLE).any() {
+        if self.state.castle & ExtraState::WHITE_KING_CASTLE != 0 {
             res.push('K');
         }
-        if (self.state & ExtraState::WHITE_QUEEN_CASTLE).any() {
+        if self.state.castle & ExtraState::WHITE_QUEEN_CASTLE != 0 {
             res.push('Q');
         }
-        if (self.state & ExtraState::BLACK_KING_CASTLE).any() {
+        if self.state.castle & ExtraState::BLACK_KING_CASTLE != 0 {
             res.push('k');
         }
-        if (self.state & ExtraState::BLACK_QUEEN_CASTLE).any() {
+        if self.state.castle & ExtraState::BLACK_QUEEN_CASTLE != 0 {
             res.push('q');
         }
         if len == res.len() {

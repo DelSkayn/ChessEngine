@@ -816,6 +816,7 @@ name = "engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "rand 0.8.3",
 ]
 
 [[package]]

@@ -67,6 +67,7 @@ impl Square {
         self.0 >> 3
     }
 
+    #[inline]
     pub fn flip(self) -> Self {
         Square(63 - self.0)
     }

@@ -3,13 +3,25 @@ use std::fmt;
 
 #[derive(Eq, PartialEq, Clone, Copy)]
 pub enum Move {
-    Simple {
+    Quiet {
         from: Square,
         to: Square,
         piece: Piece,
     },
+    Capture {
+        from: Square,
+        to: Square,
+        piece: Piece,
+        taken: Piece,
+    },
     Promote {
         promote: Piece,
+        to: Square,
+        from: Square,
+    },
+    PromoteCapture {
+        promote: Piece,
+        taken: Piece,
         to: Square,
         from: Square,
     },
@@ -41,12 +53,23 @@ fn write_piece(p: Piece, f: &mut fmt::Formatter) -> fmt::Result {
 impl fmt::Debug for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Move::Simple { from, to, piece } => {
+            Move::Quiet{ from, to, piece } => {
                 write_piece(piece, f)?;
                 write!(f, "{:?}{:?}", from, to)?;
             }
+            Move::Capture{ from, to, piece,taken } => {
+                write_piece(piece, f)?;
+                write!(f, "{:?}{:?}x", from, to)?;
+                write_piece(taken, f)?;
+            }
             Move::Promote { to, from, promote } => {
                 write!(f, "{:?}{:?}=", from, to)?;
+                write_piece(promote, f)?;
+            }
+            Move::PromoteCapture { to, from, promote,taken } => {
+                write!(f, "{:?}{:?}x", from, to)?;
+                write_piece(taken, f)?;
+                write!(f, "=")?;
                 write_piece(promote, f)?;
             }
             Move::Castle { king } => {

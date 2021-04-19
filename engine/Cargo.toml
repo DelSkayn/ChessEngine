@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
+rand = "0.8.3"
 
 
 [dev-dependencies]
@@ -19,4 +20,8 @@ harness = false
 
 [[bench]]
 name = "generate_moves_ply"
+harness = false
+
+[[bench]]
+name = "eval_moves"
 harness = false

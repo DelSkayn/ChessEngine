@@ -1,4 +1,4 @@
-use engine::Board;
+use engine::{hash::Hasher, Board};
 use ggez::{
     audio::{SoundSource, Source},
     event::{EventHandler, MouseButton},
@@ -29,10 +29,11 @@ impl Chess {
     pub fn new(
         ctx: &mut Context,
         board: Board,
+        hasher: Hasher,
         mut white: Box<dyn Player>,
         mut black: Box<dyn Player>,
     ) -> Chess {
-        let board = RenderBoard::new(board);
+        let board = RenderBoard::new(board, hasher);
         if board.board.white_turn() {
             white.start_turn(&board);
         } else {

@@ -1,4 +1,4 @@
-use engine::{Board, Move, Piece, Square, BB};
+use engine::{hash::Hasher, Board, Move, Piece, Square, BB};
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect},
     input,
@@ -8,6 +8,7 @@ use ggez::{
 };
 
 pub struct RenderBoard {
+    hasher: Hasher,
     pub board: Board,
     selected: Option<Square>,
     dragging: Option<Square>,
@@ -16,8 +17,9 @@ pub struct RenderBoard {
 }
 
 impl RenderBoard {
-    pub fn new(board: Board) -> Self {
+    pub fn new(board: Board, hasher: Hasher) -> Self {
         RenderBoard {
+            hasher,
             board,
             selected: None,
             dragging: None,
@@ -141,7 +143,13 @@ impl RenderBoard {
     }
 
     pub fn make_move(&mut self, mov: Move) {
-        self.board.make_move(mov);
+        self.board.make_move(mov, &self.hasher);
+        match mov{
+            Move::Quiet{from,to,..} | Move::Capture{from,to,..} => {
+                self.highlight(from,to);
+            }
+            _ => {},
+        }
         self.clear_drag();
     }
 

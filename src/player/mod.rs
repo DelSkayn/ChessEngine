@@ -1,5 +1,5 @@
 use crate::{board::RenderBoard, game::PlayedMove};
-use engine::{Move, MoveGenerator, Square};
+use engine::{Move, MoveGenerator, Square,Piece};
 use ggez::event::MouseButton;
 
 mod eval;
@@ -128,8 +128,54 @@ impl Player for MousePlayer {
                 if let Some(b_to) = board.square([x, y]) {
                     for m in self.possible_moves.iter().copied() {
                         match m {
-                            Move::Simple { from, to, .. } => {
+                            Move::Quiet{ from, to, .. } => {
                                 if from == b_from && to == b_to {
+                                    board.highlight(from, to);
+                                    board.make_move(m);
+                                    return PlayedMove::Move;
+                                }
+                            }
+                            Move::Capture{ from, to, .. } => {
+                                if from == b_from && to == b_to {
+                                    board.highlight(from, to);
+                                    board.make_move(m);
+                                    return PlayedMove::Move;
+                                }
+                            }
+                            Move::Castle{ king } => {
+                                if board.board.state.black_turn{
+                                    if b_from == Square::E8 && b_to == Square::G8 && king{
+                                        board.make_move(m);
+                                        board.highlight(b_from, b_to);
+                                        return PlayedMove::Move;
+                                    }
+                                    if b_from == Square::E8 && b_to == Square::C8 && !king{
+                                        board.make_move(m);
+                                        board.highlight(b_from, b_to);
+                                        return PlayedMove::Move;
+                                    }
+                                }else{
+                                    if b_from == Square::E1 && b_to == Square::G1 && king{
+                                        board.make_move(m);
+                                        board.highlight(b_from, b_to);
+                                        return PlayedMove::Move;
+                                    }
+                                    if b_from == Square::E1 && b_to == Square::C1 && !king{
+                                        board.make_move(m);
+                                        board.highlight(b_from, b_to);
+                                        return PlayedMove::Move;
+                                    }
+                                }
+                            }
+                            Move::Promote{promote,from,to,..} => {
+                                if from == b_from && to == b_to && (promote == Piece::WhiteQueen || promote == Piece::BlackQueen) {
+                                    board.highlight(from, to);
+                                    board.make_move(m);
+                                    return PlayedMove::Move;
+                                }
+                            }
+                            Move::PromoteCapture{promote,from,to,..} => {
+                                if from == b_from && to == b_to && (promote == Piece::WhiteQueen || promote == Piece::BlackQueen) {
                                     board.highlight(from, to);
                                     board.make_move(m);
                                     return PlayedMove::Move;

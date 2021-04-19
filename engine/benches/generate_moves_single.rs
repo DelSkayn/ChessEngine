@@ -1,9 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use engine::{Board, MoveGenerator};
+use engine::{hash::Hasher, Board, MoveGenerator};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let board =
-        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+    let board = Board::start_position();
     let move_gen = MoveGenerator::new();
     let mut buffer = Vec::new();
 
