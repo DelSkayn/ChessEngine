@@ -6,7 +6,7 @@ mod extra_state;
 mod render;
 pub use extra_state::ExtraState;
 mod gen;
-pub use gen::MoveGenerator;
+pub use gen::{InlineBuffer, MoveBuffer, MoveGenerator};
 mod square;
 pub use square::Square;
 mod mov;
@@ -596,7 +596,7 @@ impl Board {
             }
             _ => todo!(),
         }
-        assert_eq!(self.hash,mov.hash);
+        assert_eq!(self.hash, mov.hash);
     }
 
     pub fn on(&self, square: Square) -> Option<Piece> {

@@ -1,5 +1,5 @@
 use crate::{
-    gen::{MoveBuffer, MoveGenerator},
+    gen::{InlineBuffer, MoveBuffer, MoveGenerator},
     hash::Hasher,
     util::{BoardArray, PieceArray},
     Board, Move, Piece,
@@ -75,14 +75,23 @@ impl MoveBuffer for CaptureOnlyBuffer {
     fn len(&self) -> usize {
         self.len
     }
+
+    fn swap(&mut self, first: usize, second: usize) {
+        self.v.swap(first, second);
+    }
+
+    fn get(&self, which: usize) -> &Move {
+        assert!(self.len > which);
+        unsafe { &*self.v.get_unchecked(which).as_ptr() }
+    }
 }
 
 #[derive(Default, Clone, Copy)]
 pub struct Stored {
     hash: u64,
-    depth: u32,
+    best_move: u16,
+    depth: u16,
     value: StoredValue,
-    best_move: u32,
 }
 
 pub struct HashMap {
@@ -215,15 +224,11 @@ impl Eval {
         }
     }
 
-    pub fn eval(
-        &mut self,
-        b: &Board,
-        buffers: &mut Buffers,
-        cont: &mut impl FnMut(Option<BestMove>) -> bool,
-    ) {
+    pub fn eval(&mut self, b: &Board, cont: &mut impl FnMut(Option<BestMove>) -> bool) {
         let redo = [200, i32::MAX];
-        buffers.root.clear();
-        self.gen.gen_moves(&b, &mut buffers.root);
+
+        let mut moves = InlineBuffer::new();
+        self.gen.gen_moves(&b, &mut moves);
         self.nodes_evaluated = 0;
         self.table_hits = 0;
         self.cut_offs = 0;
@@ -231,7 +236,7 @@ impl Eval {
         let mut b = b.clone();
         let mut best_move = None;
         let best_move_idx = self.hashmap.lookup(b.hash).map(|x| x.best_move);
-        self.order_moves(&mut buffers.root, best_move_idx);
+        self.order_moves(&mut moves, best_move_idx);
         let white_turn = b.white_turn();
 
         let mut best_move_idx = best_move_idx.unwrap_or(0);
@@ -242,42 +247,26 @@ impl Eval {
         let mut redo_alpha = 0;
         let mut redo_beta = 0;
         loop {
-            for _ in buffers.depth.len()..depth {
-                buffers.depth.push(Vec::new());
-            }
-
             let mut value = if white_turn { -i32::MAX } else { i32::MAX };
-            for (idx, m) in buffers.root.iter().copied().enumerate() {
+            for (idx, m) in moves.iter().copied().enumerate() {
                 let undo = b.make_move(m, &self.hasher);
                 let move_value = if white_turn {
-                    self.alpha_beta_min(
-                        &mut b,
-                        &mut buffers.depth[0..depth],
-                        value,
-                        beta,
-                        !Self::is_move_capture(&m),
-                    )
+                    self.alpha_beta_min(&mut b, value, beta, !Self::is_move_capture(&m), depth)
                 } else {
-                    self.alpha_beta_max(
-                        &mut b,
-                        &mut buffers.depth[0..depth],
-                        alpha,
-                        value,
-                        !Self::is_move_capture(&m),
-                    )
+                    self.alpha_beta_max(&mut b, alpha, value, !Self::is_move_capture(&m), depth)
                 };
                 b.unmake_move(undo, &self.hasher);
 
                 if white_turn {
                     if move_value > value {
                         best_move = Some(m);
-                        best_move_idx = idx as u32;
+                        best_move_idx = idx as u16;
                         value = move_value;
                     }
                 } else {
                     if move_value < value {
                         best_move = Some(m);
-                        best_move_idx = idx as u32;
+                        best_move_idx = idx as u16;
                         value = move_value;
                     }
                 }
@@ -304,7 +293,7 @@ impl Eval {
             let best_move = BestMove {
                 mov: best_move,
                 value,
-                depth,
+                depth: depth as usize,
                 nodes_evaluated: self.nodes_evaluated,
                 table_hits: self.table_hits,
                 cut_offs: self.cut_offs,
@@ -317,7 +306,7 @@ impl Eval {
             alpha = value - Self::PAWN_VALUE / 2;
             beta = value + Self::PAWN_VALUE / 2;
 
-            self.order_moves(&mut buffers.root, Some(best_move_idx));
+            self.order_moves(&mut moves, Some(best_move_idx));
 
             depth += 1;
         }
@@ -326,16 +315,16 @@ impl Eval {
     fn alpha_beta_max(
         &mut self,
         b: &mut Board,
-        buffers: &mut [Vec<Move>],
         mut alpha: i32,
         mut beta: i32,
         quiet: bool,
+        depth: u16,
     ) -> i32 {
         let mut stored_best_move = None;
         if let Some(x) = self.hashmap.lookup(b.hash) {
             stored_best_move = Some(x.best_move);
             self.table_hits += 1;
-            if x.depth >= buffers.len() as u32 {
+            if x.depth >= depth {
                 match x.value {
                     StoredValue::Exact(x) => return x,
                     StoredValue::LowerBound(x) => {
@@ -356,7 +345,7 @@ impl Eval {
             }
         }
 
-        if buffers.is_empty() {
+        if depth == 0 {
             if quiet {
                 return self.eval_board(b);
             } else {
@@ -364,27 +353,26 @@ impl Eval {
             }
         }
 
-        let (buffer, rest) = buffers.split_first_mut().unwrap();
-        buffer.clear();
-        self.gen.gen_moves(b, buffer);
-        if buffer.is_empty() {
+        let mut buffer = InlineBuffer::new();
+        self.gen.gen_moves(b, &mut buffer);
+        if buffer.len() == 0 {
             let color = if b.white_turn() { -1 } else { 1 };
             return color * Self::CHECK_VALUE;
         }
 
-        self.order_moves(buffer, stored_best_move);
+        self.order_moves(&mut buffer, stored_best_move);
 
-        let mut best_move = 0;
+        let mut best_move = 0u16;
 
         for (idx, m) in buffer.iter().copied().enumerate() {
             let tmp = b.clone();
             let undo = b.make_move(m, &self.hasher);
             b.assert_valid();
-            let value = self.alpha_beta_min(b, rest, alpha, beta, !Self::is_move_capture(&m));
+            let value = self.alpha_beta_min(b, alpha, beta, !Self::is_move_capture(&m), depth - 1);
             b.unmake_move(undo, &self.hasher);
             assert_eq!(tmp, *b);
             if value > alpha {
-                best_move = idx as u32;
+                best_move = idx as u16;
                 alpha = value;
             }
             if value >= beta {
@@ -396,14 +384,14 @@ impl Eval {
         if alpha >= beta {
             self.hashmap.store(Stored {
                 hash: b.hash,
-                depth: buffers.len() as u32,
+                depth,
                 value: StoredValue::LowerBound(alpha),
                 best_move,
             })
         } else {
             self.hashmap.store(Stored {
                 hash: b.hash,
-                depth: buffers.len() as u32,
+                depth,
                 value: StoredValue::Exact(alpha),
                 best_move,
             })
@@ -415,16 +403,16 @@ impl Eval {
     fn alpha_beta_min(
         &mut self,
         b: &mut Board,
-        buffers: &mut [Vec<Move>],
         mut alpha: i32,
         mut beta: i32,
         quiet: bool,
+        depth: u16,
     ) -> i32 {
         let mut stored_best_move = None;
         if let Some(x) = self.hashmap.lookup(b.hash) {
             stored_best_move = Some(x.best_move);
             self.table_hits += 1;
-            if x.depth >= buffers.len() as u32 {
+            if x.depth >= depth {
                 match x.value {
                     StoredValue::Exact(x) => return x,
                     StoredValue::LowerBound(x) => {
@@ -445,7 +433,7 @@ impl Eval {
             }
         }
 
-        if buffers.is_empty() {
+        if depth == 0 {
             if quiet {
                 return self.eval_board(b);
             } else {
@@ -453,15 +441,14 @@ impl Eval {
             }
         }
 
-        let (buffer, rest) = buffers.split_first_mut().unwrap();
-        buffer.clear();
-        self.gen.gen_moves(b, buffer);
+        let mut buffer = InlineBuffer::new();
+        self.gen.gen_moves(b, &mut buffer);
         let color = if b.white_turn() { -1 } else { 1 };
-        if buffer.is_empty() {
+        if buffer.len() == 0 {
             return color * Self::CHECK_VALUE;
         }
 
-        self.order_moves(buffer, stored_best_move);
+        self.order_moves(&mut buffer, stored_best_move);
 
         let mut best_move = 0;
 
@@ -469,12 +456,12 @@ impl Eval {
             let tmp = b.clone();
             let undo = b.make_move(m, &self.hasher);
             b.assert_valid();
-            let value = self.alpha_beta_max(b, rest, alpha, beta, !Self::is_move_capture(&m));
+            let value = self.alpha_beta_max(b, alpha, beta, !Self::is_move_capture(&m), depth - 1);
             b.unmake_move(undo, &self.hasher);
             b.assert_valid();
             assert_eq!(tmp, *b);
             if value < beta {
-                best_move = idx as u32;
+                best_move = idx as u16;
                 beta = value;
             }
             if beta <= alpha {
@@ -486,14 +473,14 @@ impl Eval {
         if alpha >= beta {
             self.hashmap.store(Stored {
                 hash: b.hash,
-                depth: buffers.len() as u32,
+                depth,
                 value: StoredValue::UpperBound(beta),
                 best_move,
             })
         } else {
             self.hashmap.store(Stored {
                 hash: b.hash,
-                depth: buffers.len() as u32,
+                depth,
                 value: StoredValue::Exact(beta),
                 best_move,
             })
@@ -513,6 +500,7 @@ impl Eval {
 
         let mut buffer = CaptureOnlyBuffer::new();
         self.gen.gen_moves(b, &mut buffer);
+        self.order_moves(&mut buffer, None);
         for m in buffer.iter().copied() {
             let undo = b.make_move(m, &self.hasher);
             let value = self.quiesce_min(b, alpha, beta);
@@ -539,6 +527,7 @@ impl Eval {
 
         let mut buffer = CaptureOnlyBuffer::new();
         self.gen.gen_moves(b, &mut buffer);
+        self.order_moves(&mut buffer, None);
         for m in buffer.iter().copied() {
             let undo = b.make_move(m, &self.hasher);
             let value = self.quiesce_max(b, alpha, beta);
@@ -674,34 +663,37 @@ impl Eval {
                 * Self::PAWN_VALUE;
 
         for p in b[Piece::WhiteKing].iter() {
-            piece_value += Self::KING_TABLE[p]
+            piece_value += Self::KING_TABLE[p.flip()]
         }
         for p in b[Piece::WhiteBishop].iter() {
-            piece_value += Self::BISHOP_TABLE[p]
+            piece_value += Self::BISHOP_TABLE[p.flip()]
         }
         for p in b[Piece::WhiteKnight].iter() {
-            piece_value += Self::KNIGHT_TABLE[p]
+            piece_value += Self::KNIGHT_TABLE[p.flip()]
         }
         for p in b[Piece::WhitePawn].iter() {
-            piece_value += Self::PAWN_TABLE[p]
+            piece_value += Self::PAWN_TABLE[p.flip()]
         }
         for p in b[Piece::BlackKing].iter() {
-            piece_value -= Self::KING_TABLE[p.flip()]
+            piece_value -= Self::KING_TABLE[p]
         }
         for p in b[Piece::BlackBishop].iter() {
-            piece_value -= Self::BISHOP_TABLE[p.flip()]
+            piece_value -= Self::BISHOP_TABLE[p]
         }
         for p in b[Piece::BlackKnight].iter() {
-            piece_value -= Self::KNIGHT_TABLE[p.flip()]
+            piece_value -= Self::KNIGHT_TABLE[p]
         }
         for p in b[Piece::BlackPawn].iter() {
-            piece_value -= Self::PAWN_TABLE[p.flip()]
+            piece_value -= Self::PAWN_TABLE[p]
         }
 
         piece_value
     }
 
-    pub fn order_moves(&mut self, moves: &mut Vec<Move>, stored_best_move: Option<u32>) {
+    pub fn order_moves<T>(&mut self, moves: &mut T, stored_best_move: Option<u16>)
+    where
+        T: MoveBuffer,
+    {
         let move_swap = if let Some(x) = stored_best_move {
             if moves.len() > x as usize {
                 moves.swap(0, x as usize);
@@ -717,9 +709,9 @@ impl Eval {
             return;
         }
 
-        let mut best_value = self.eval_move(&moves[move_swap]);
+        let mut best_value = self.eval_move(moves.get(move_swap));
         for i in move_swap + 1..moves.len() {
-            let v = self.eval_move(&moves[i]);
+            let v = self.eval_move(moves.get(move_swap));
             if v > best_value {
                 moves.swap(move_swap, i);
                 best_value = v;

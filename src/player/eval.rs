@@ -1,7 +1,7 @@
 use super::Player;
 use crate::{board::RenderBoard, game::PlayedMove};
 use engine::{
-    eval::{BestMove, Buffers, Eval},
+    eval::{BestMove, Eval},
     hash::Hasher,
     Board, Move,
 };
@@ -39,13 +39,12 @@ impl ThreadedEval {
 
     fn run(hasher: Hasher, channel: Receiver<EvalCmd>) {
         let mut eval = Eval::new(hasher, 1 << 12);
-        let mut buffers = Buffers::default();
 
         for cmd in channel {
             let board = cmd.board;
             let sender = cmd.sender;
             println!("running!");
-            eval.eval(&board, &mut buffers, &mut |b: Option<BestMove>| {
+            eval.eval(&board, &mut |b: Option<BestMove>| {
                 if let Some(b) = b.as_ref() {
                     println!(
                         "{}:{:?}\t={}\t(nodes: {}, hits:{}, cut_offs:{})",
@@ -70,7 +69,7 @@ impl Player for ThreadedEval {
             }
         }
 
-        if self.time.unwrap().elapsed() > Duration::from_secs(1)
+        if self.time.unwrap().elapsed() > Duration::from_secs(5)
             || self.best_move.is_some() && self.value == Eval::CHECK_VALUE
         {
             if let Some(mov) = self.best_move.take() {

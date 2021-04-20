@@ -1,21 +1,103 @@
 use super::util::{BoardArray, DirectionArray};
 use super::{Board, Direction, ExtraState, Move, Piece, Square, BB};
+use std::mem::MaybeUninit;
 
 mod fill_7;
 
 pub trait MoveBuffer {
     fn push(&mut self, mov: Move);
 
+    fn swap(&mut self, first: usize, second: usize);
+
     fn len(&self) -> usize;
+
+    fn get(&self, which: usize) -> &Move;
+}
+
+pub struct InlineBuffer {
+    v: [MaybeUninit<Move>; 256],
+    len: usize,
+}
+
+impl MoveBuffer for InlineBuffer {
+    #[inline(always)]
+    fn push(&mut self, mov: Move) {
+        self.v[self.len] = MaybeUninit::new(mov);
+        self.len += 1;
+    }
+
+    #[inline(always)]
+    fn swap(&mut self, first: usize, second: usize) {
+        self.v.swap(first, second);
+    }
+
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline(always)]
+    fn get(&self, which: usize) -> &Move {
+        assert!(self.len > which);
+        unsafe { &*self.v.get_unchecked(which).as_ptr() }
+    }
+}
+
+impl InlineBuffer {
+    pub fn new() -> InlineBuffer {
+        InlineBuffer {
+            v: [MaybeUninit::uninit(); 256],
+            len: 0,
+        }
+    }
+
+    pub fn iter(&self) -> InlineIter {
+        InlineIter {
+            len: self.len,
+            cur: 0,
+            v: &self.v,
+        }
+    }
+}
+
+pub struct InlineIter<'a> {
+    len: usize,
+    cur: usize,
+    v: &'a [MaybeUninit<Move>; 256],
 }
 
 impl MoveBuffer for Vec<Move> {
+    #[inline(always)]
     fn push(&mut self, mov: Move) {
         (*self).push(mov)
     }
 
+    #[inline(always)]
     fn len(&self) -> usize {
         (*self).len()
+    }
+
+    #[inline(always)]
+    fn swap(&mut self, first: usize, second: usize) {
+        (**self).swap(first, second)
+    }
+
+    #[inline(always)]
+    fn get(&self, which: usize) -> &Move {
+        &self[which]
+    }
+}
+
+impl<'a> Iterator for InlineIter<'a> {
+    type Item = &'a Move;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len == self.cur {
+            return None;
+        }
+        let res = unsafe { &*self.v.get_unchecked(self.cur).as_ptr() };
+        self.cur += 1;
+        Some(res)
     }
 }
 
