@@ -353,8 +353,7 @@ impl Eval {
         was_capture: bool,
     ) -> i32 {
         if self.stop.load(Ordering::Acquire){
-            let color = if b.white_turn() { -1 } else { 1 };
-            return color * Self::CHECK_VALUE;
+            return -Self::CHECK_VALUE;
         }
 
         let mut stored_best_move = None;
@@ -392,9 +391,8 @@ impl Eval {
 
         let mut buffer = InlineBuffer::new();
         self.gen.gen_moves(b, &mut buffer);
-        let color = if b.white_turn() { -1 } else { 1 };
         if buffer.len() == 0 {
-            return color * Self::CHECK_VALUE;
+            return -Self::CHECK_VALUE;
         }
 
         self.order_moves(b,&mut buffer, stored_best_move);

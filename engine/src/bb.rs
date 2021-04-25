@@ -174,18 +174,21 @@ impl Debug for BB {
 }
 
 impl BitAndAssign for BB {
+    #[inline(always)]
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0
     }
 }
 
 impl BitOrAssign for BB {
+    #[inline(always)]
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
     }
 }
 
 impl BitXorAssign for BB {
+    #[inline(always)]
     fn bitxor_assign(&mut self, rhs: Self) {
         self.0 ^= rhs.0
     }
@@ -194,6 +197,7 @@ impl BitXorAssign for BB {
 impl BitAnd for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitand(self, rhs: Self) -> Self::Output {
         BB(self.0 & rhs.0)
     }
@@ -202,6 +206,7 @@ impl BitAnd for BB {
 impl BitOr for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitor(self, rhs: Self) -> Self::Output {
         BB(self.0 | rhs.0)
     }
@@ -210,24 +215,28 @@ impl BitOr for BB {
 impl BitXor for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitxor(self, rhs: Self) -> Self::Output {
         BB(self.0 ^ rhs.0)
     }
 }
 
 impl BitAndAssign<u64> for BB {
+    #[inline(always)]
     fn bitand_assign(&mut self, rhs: u64) {
         self.0 &= rhs
     }
 }
 
 impl BitOrAssign<u64> for BB {
+    #[inline(always)]
     fn bitor_assign(&mut self, rhs: u64) {
         self.0 |= rhs
     }
 }
 
 impl BitXorAssign<u64> for BB {
+    #[inline(always)]
     fn bitxor_assign(&mut self, rhs: u64) {
         self.0 ^= rhs
     }
@@ -236,6 +245,7 @@ impl BitXorAssign<u64> for BB {
 impl BitAnd<u64> for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitand(self, rhs: u64) -> Self::Output {
         BB(self.0 & rhs)
     }
@@ -244,6 +254,7 @@ impl BitAnd<u64> for BB {
 impl BitOr<u64> for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitor(self, rhs: u64) -> Self::Output {
         BB(self.0 | rhs)
     }
@@ -252,6 +263,7 @@ impl BitOr<u64> for BB {
 impl BitXor<u64> for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn bitxor(self, rhs: u64) -> Self::Output {
         BB(self.0 ^ rhs)
     }
@@ -260,12 +272,14 @@ impl BitXor<u64> for BB {
 impl Shl<u8> for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn shl(self, rhs: u8) -> Self::Output {
         BB(self.0 << rhs)
     }
 }
 
 impl ShlAssign<u8> for BB {
+    #[inline(always)]
     fn shl_assign(&mut self, rhs: u8) {
         self.0 <<= rhs
     }
@@ -274,12 +288,14 @@ impl ShlAssign<u8> for BB {
 impl Shr<u8> for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn shr(self, rhs: u8) -> Self::Output {
         BB(self.0 >> rhs)
     }
 }
 
 impl ShrAssign<u8> for BB {
+    #[inline(always)]
     fn shr_assign(&mut self, rhs: u8) {
         self.0 >>= rhs
     }
@@ -288,6 +304,7 @@ impl ShrAssign<u8> for BB {
 impl Not for BB {
     type Output = Self;
 
+    #[inline(always)]
     fn not(self) -> Self::Output {
         BB(!self.0)
     }

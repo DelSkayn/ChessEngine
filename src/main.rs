@@ -40,8 +40,8 @@ fn main() {
         Board::start_position()
     };
 
-    let white = Box::new(MousePlayer::new());
-    let black: Box<dyn Player> = if args.self_play {
+    let black = Box::new(MousePlayer::new());
+    let white: Box<dyn Player> = if args.self_play {
         Box::new(MousePlayer::new())
     } else {
         Box::new(ThreadedEval::new(hasher.clone()))

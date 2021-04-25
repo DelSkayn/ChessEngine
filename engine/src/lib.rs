@@ -231,7 +231,7 @@ pub struct Board {
     pub state: ExtraState,
     squares: BoardArray<Option<Piece>>,
 
-    moves: Vec<UnmakeMove>,
+    //moves: Vec<UnmakeMove>,
 
     hash: u64,
 }
@@ -242,7 +242,7 @@ impl Board {
             pieces: [BB::empty(); 12],
             squares: BoardArray::new_array([None;64]),
             state: ExtraState::empty(),
-            moves: Vec::new(),
+            //moves: Vec::new(),
             hash: 0,
         }
     }
@@ -501,12 +501,12 @@ impl Board {
             state,
             hash,
         };
-        self.moves.push(res);
+        //self.moves.push(res);
         res
     }
 
     pub fn unmake_move(&mut self, mov: UnmakeMove, hasher: &Hasher) {
-        debug_assert_eq!(self.moves.pop(), Some(mov));
+        //debug_assert_eq!(self.moves.pop(), Some(mov));
         self.hash ^= hasher.castle[self.state.castle as usize];
         self.hash ^= hasher.castle[mov.state.castle as usize];
         self.hash ^= hasher.black;
@@ -631,7 +631,7 @@ impl Debug for Board {
             .field("black_rook", &self[Piece::BlackRook])
             .field("black_pawn", &self[Piece::BlackPawn])
             .field("state", &self.state)
-            .field("moves", &self.moves)
+            //.field("moves", &self.moves)
             .field("hash", &self.hash)
             .field("squares", &self.squares)
             .finish()
