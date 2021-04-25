@@ -6,7 +6,7 @@ use engine::{
     Board, Move,
 };
 use std::{
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{Arc,atomic::{Ordering,AtomicBool},mpsc::{self, Receiver, Sender}},
     thread,
     time::{Duration, Instant},
 };
@@ -22,23 +22,27 @@ pub struct ThreadedEval {
     reciever: Option<Receiver<Option<BestMove>>>,
     best_move: Option<Move>,
     value: i32,
+    stop: Arc<AtomicBool>
 }
 
 impl ThreadedEval {
     pub fn new(hasher: Hasher) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop.clone();
         let (sender, recv) = mpsc::channel();
-        thread::spawn(|| Self::run(hasher, recv));
+        thread::spawn(|| Self::run(hasher, recv,stop_clone));
         ThreadedEval {
             time: None,
             sender,
             reciever: None,
             best_move: None,
             value: 0,
+            stop,
         }
     }
 
-    fn run(hasher: Hasher, channel: Receiver<EvalCmd>) {
-        let mut eval = Eval::new(hasher, 1 << 12);
+    fn run(hasher: Hasher, channel: Receiver<EvalCmd>,stop: Arc<AtomicBool>) {
+        let mut eval = Eval::new(hasher, 1 << 12,stop);
 
         for cmd in channel {
             let board = cmd.board;
@@ -46,10 +50,12 @@ impl ThreadedEval {
             println!("running!");
             eval.eval(&board, &mut |b: Option<BestMove>| {
                 if let Some(b) = b.as_ref() {
-                    println!(
-                        "{}:{:?}\t={}\t(nodes: {}, hits:{}, cut_offs:{})",
-                        b.depth, b.mov, b.value, b.nodes_evaluated, b.table_hits, b.cut_offs
-                    );
+                    if let Some(mov) = b.mov{
+                        println!(
+                            "{}:{}\t={}\t(nodes: {}, hits:{}, cut_offs:{})",
+                            b.depth, mov, b.value, b.nodes_evaluated, b.table_hits, b.cut_offs
+                        );
+                    }
                 }
 
                 sender.send(b).is_ok()
@@ -69,11 +75,12 @@ impl Player for ThreadedEval {
             }
         }
 
-        if self.time.unwrap().elapsed() > Duration::from_secs(5)
+        if self.time.unwrap().elapsed() > Duration::from_secs(1)
             || self.best_move.is_some() && self.value == Eval::CHECK_VALUE
         {
             if let Some(mov) = self.best_move.take() {
                 self.reciever.take();
+                self.stop.store(true,Ordering::Relaxed);
                 board.make_move(mov);
                 return PlayedMove::Move;
             }
@@ -84,6 +91,7 @@ impl Player for ThreadedEval {
     fn start_turn(&mut self, board: &RenderBoard) {
         let (sender, recv) = mpsc::channel();
         self.time = Some(Instant::now());
+        self.stop.store(false,Ordering::Release);
         self.reciever = Some(recv);
         self.sender
             .send(EvalCmd {

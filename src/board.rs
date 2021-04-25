@@ -1,4 +1,4 @@
-use engine::{hash::Hasher, Board, Move, Piece, Square, BB};
+use engine::{hash::Hasher, Board, Move, Piece, Square, BB,UnmakeMove};
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect},
     input,
@@ -14,6 +14,7 @@ pub struct RenderBoard {
     dragging: Option<Square>,
     mov: Option<(Square, Square)>,
     rect: Rect,
+    made_moves: Vec<UnmakeMove>,
 }
 
 impl RenderBoard {
@@ -25,6 +26,7 @@ impl RenderBoard {
             dragging: None,
             mov: None,
             rect: Rect::zero(),
+            made_moves: Vec::new(),
         }
     }
 
@@ -143,13 +145,9 @@ impl RenderBoard {
     }
 
     pub fn make_move(&mut self, mov: Move) {
-        self.board.make_move(mov, &self.hasher);
-        match mov{
-            Move::Quiet{from,to,..} | Move::Capture{from,to,..} => {
-                self.highlight(from,to);
-            }
-            _ => {},
-        }
+        let m = self.board.make_move(mov, &self.hasher);
+        self.made_moves.push(m);
+        self.highlight(mov.from(),mov.to());
         self.clear_drag();
     }
 
@@ -165,6 +163,20 @@ impl RenderBoard {
         let rank = 7 - rank;
 
         dbg!(Some(Square::from_file_rank(file, rank)))
+    }
+
+    pub fn undo_move(&mut self){
+        if self.made_moves.len() < 2{
+            return;
+        }
+        if let Some(x) = self.made_moves.pop(){
+            self.board.unmake_move(x,&self.hasher);
+        }
+        if let Some(x) = self.made_moves.pop(){
+            self.board.unmake_move(x,&self.hasher);
+        }
+        self.clear_highlight();
+        self.clear_select();
     }
 
     pub fn on(&self, square: Square) -> Option<Piece> {

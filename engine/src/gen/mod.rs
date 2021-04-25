@@ -458,6 +458,9 @@ impl MoveGenerator {
         let queen = Piece::player_queen(black_turn);
         let pawn = Piece::player_pawn(black_turn);
 
+        let bishop_like = b[bishop] | b[queen];
+        let rook_like = b[rook] | b[queen];
+
         let king_square = b[king].first_piece();
 
         let promote_rank = if white_turn { BB::RANK_7 } else { BB::RANK_2 };
@@ -526,16 +529,9 @@ impl MoveGenerator {
                 | Self::pawn_move_right(b[king], white_turn) & b[their_pawn];
 
             // generate king moves as the king can always try to move
-            let king_moves = self.king_attacks[king_square] & !attacked;
-            for to in (king_moves & empty).iter() {
-                buffer.push(Move::Quiet {
-                    from: king_square,
-                    to,
-                    piece: king,
-                })
-            }
-            for to in (king_moves & their).iter() {
-                Self::gen_capture_move(b, king_square, to, king, buffer);
+            let king_moves = self.king_attacks[king_square] & !attacked & !my;
+            for to in (king_moves).iter() {
+                buffer.push(Move::normal(king_square,to))
             }
 
             // multiple checkers, king can has to move, can't block or take
@@ -566,66 +562,26 @@ impl MoveGenerator {
             for k in (b[knight] & !pinned).iter() {
                 let attack = self.knight_attacks[k] & checkers;
                 if attack.any() {
-                    buffer.push(Move::Capture {
-                        from: k,
-                        to: attack.first_piece(),
-                        taken: checker_piece,
-                        piece: knight,
-                    })
+                    buffer.push(Move::normal(k,attack.first_piece()));
                 }
             }
 
             // none of the pinned pieces can move so always exclude pinned pieces
             let checker_attacked_bishop = self.bishop_attacks(checker, occupied);
-            for p in (checker_attacked_bishop & b[bishop] & !pinned).iter() {
-                buffer.push(Move::Capture {
-                    from: p,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: bishop,
-                })
-            }
-            for p in (checker_attacked_bishop & b[queen] & !pinned).iter() {
-                buffer.push(Move::Capture {
-                    from: p,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: queen,
-                })
+            for p in (checker_attacked_bishop & bishop_like & !pinned).iter() {
+                buffer.push(Move::normal(p,checker))
             }
 
             let checker_attacked_rook = self.rook_attacks(checker, occupied);
-            for p in (checker_attacked_rook & b[rook] & !pinned).iter() {
-                buffer.push(Move::Capture {
-                    from: p,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: rook,
-                })
+            for p in (checker_attacked_rook & rook_like & !pinned).iter() {
+                buffer.push(Move::normal(p,checker))
             }
-            for p in (checker_attacked_rook & b[queen] & !pinned).iter() {
-                buffer.push(Move::Capture {
-                    from: p,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: queen,
-                })
-            }
+
             if (Self::pawn_move_left(b[pawn] & !pinned, white_turn) & checkers).any() {
-                buffer.push(Move::Capture {
-                    from: checker - left_pawn_attack,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(checker - left_pawn_attack, checker))
             }
             if (Self::pawn_move_right(b[pawn] & !pinned, white_turn) & checkers).any() {
-                buffer.push(Move::Capture {
-                    from: checker - right_pawn_attack,
-                    to: checker,
-                    taken: checker_piece,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(checker - right_pawn_attack, checker))
             }
 
             // checks with a knight or pawn can only be resolved by moving or by taking the
@@ -641,60 +597,26 @@ impl MoveGenerator {
             let pawn_moves = Self::pawn_move(b[pawn] & !pinned, white_turn) & empty;
             let double_pawn_moves = Self::pawn_move(pawn_moves & promote_rank, white_turn) & empty;
             for p in (pawn_moves & between).iter() {
-                buffer.push(Move::Quiet {
-                    from: p - pawn_move,
-                    to: p,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(p - pawn_move,p));
             }
             for p in (double_pawn_moves & between).iter() {
-                buffer.push(Move::Quiet {
-                    from: p - (pawn_move * 2),
-                    to: p,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(p - pawn_move * 2,p));
             }
 
             for block in between.iter() {
                 let block_attacked_bishop = self.bishop_attacks(block, occupied);
-                for p in (block_attacked_bishop & b[bishop] & !pinned).iter() {
-                    buffer.push(Move::Quiet {
-                        from: p,
-                        to: block,
-                        piece: bishop,
-                    });
-                }
-                for p in (block_attacked_bishop & b[queen] & !pinned).iter() {
-                    buffer.push(Move::Quiet {
-                        from: p,
-                        to: block,
-                        piece: queen,
-                    });
+                for p in (block_attacked_bishop & bishop_like & !pinned).iter() {
+                    buffer.push(Move::normal(p,block));
                 }
 
                 let block_attacked_rook = self.rook_attacks(block, occupied);
-                for p in (block_attacked_rook & b[rook] & !pinned).iter() {
-                    buffer.push(Move::Quiet {
-                        from: p,
-                        to: block,
-                        piece: rook,
-                    });
-                }
-                for p in (block_attacked_rook & b[queen] & !pinned).iter() {
-                    buffer.push(Move::Quiet {
-                        from: p,
-                        to: block,
-                        piece: queen,
-                    });
+                for p in (block_attacked_rook & rook_like & !pinned).iter() {
+                    buffer.push(Move::normal(p,block));
                 }
 
                 let block_attacked_knight = self.knight_attacks[block] & b[knight] & !pinned;
                 for p in block_attacked_knight.iter() {
-                    buffer.push(Move::Quiet {
-                        from: p,
-                        to: block,
-                        piece: knight,
-                    });
+                    buffer.push(Move::normal(p,block));
                 }
             }
 
@@ -706,20 +628,11 @@ impl MoveGenerator {
         // generate moves for sliding pieces
 
         // generate bishop moves
-        for p in (b[bishop] & !pinned).iter() {
-            let moves = self.bishop_attacks(p, occupied);
-            let captures = moves & their;
-            let quiet = moves & empty;
+        for p in (bishop_like & !pinned).iter() {
+            let moves = self.bishop_attacks(p, occupied) & !my;
 
-            for to in quiet.iter() {
-                buffer.push(Move::Quiet {
-                    from: p,
-                    to,
-                    piece: bishop,
-                });
-            }
-            for to in captures.iter() {
-                Self::gen_capture_move(b, p, to, bishop, buffer);
+            for to in moves.iter() {
+                buffer.push(Move::normal(p,to));
             }
         }
 
@@ -727,70 +640,26 @@ impl MoveGenerator {
         for pinner in bishop_pinners.iter() {
             let between = self.between[king_square][pinner];
             let empty_between = between & empty;
-            let bishop_pinned = between & b[bishop];
-            if (bishop_pinned).any() {
-                let from = (bishop_pinned).first_piece();
+            let pinned = between & bishop_like;
+            if (pinned).any() {
+                let from = pinned.first_piece();
                 for to in empty_between.iter() {
-                    buffer.push(Move::Quiet {
+                    buffer.push(Move::normal(
                         from,
-                        to,
-                        piece: bishop,
-                    })
+                        to,));
                 }
-                let pinner_piece = if (BB::square(pinner) & b[their_queen]).any() {
-                    their_queen
-                } else {
-                    their_bishop
-                };
-
-                buffer.push(Move::Capture {
+                buffer.push(Move::normal(
                     from,
-                    to: pinner,
-                    piece: bishop,
-                    taken: pinner_piece,
-                });
-                continue;
-            }
-            let queen_pinned = between & b[queen];
-            if (queen_pinned).any() {
-                let from = (queen_pinned).first_piece();
-                for to in empty_between.iter() {
-                    buffer.push(Move::Quiet {
-                        from,
-                        to,
-                        piece: queen,
-                    })
-                }
-                let pinner_piece = if (BB::square(pinner) & b[their_queen]).any() {
-                    their_queen
-                } else {
-                    their_bishop
-                };
-
-                buffer.push(Move::Capture {
-                    from,
-                    to: pinner,
-                    piece: queen,
-                    taken: pinner_piece,
-                });
+                    pinner,));
             }
         }
 
         // generate rook moves
-        for p in (b[rook] & !pinned).iter() {
-            let moves = self.rook_attacks(p, occupied);
-            let captures = moves & their;
-            let quiet = moves & empty;
+        for p in (rook_like & !pinned).iter() {
+            let moves = self.rook_attacks(p, occupied) & !my;
 
-            for to in quiet.iter() {
-                buffer.push(Move::Quiet {
-                    from: p,
-                    to,
-                    piece: rook,
-                });
-            }
-            for to in captures.iter() {
-                Self::gen_capture_move(b, p, to, rook, buffer);
+            for to in moves.iter() {
+                buffer.push(Move::normal(p,to));
             }
         }
 
@@ -798,89 +667,33 @@ impl MoveGenerator {
         for pinner in rook_pinners.iter() {
             let between = self.between[king_square][pinner];
             let empty_between = between & empty;
-            let rook_pinned = between & b[rook];
-            if (rook_pinned).any() {
-                let from = (rook_pinned).first_piece();
+            let pinned = between & rook_like;
+            if (pinned).any() {
+                let from = pinned.first_piece();
                 for to in empty_between.iter() {
-                    buffer.push(Move::Quiet {
+                    buffer.push(Move::normal(
                         from,
-                        to,
-                        piece: rook,
-                    })
+                        to,));
                 }
-                let pinner_piece = if (BB::square(pinner) & b[their_queen]).any() {
-                    their_queen
-                } else {
-                    their_rook
-                };
-
-                buffer.push(Move::Capture {
-                    from,
-                    to: pinner,
-                    piece: rook,
-                    taken: pinner_piece,
-                });
-                continue;
-            }
-            let queen_pinned = between & b[queen];
-            if (queen_pinned).any() {
-                let from = (queen_pinned).first_piece();
-                for to in empty_between.iter() {
-                    buffer.push(Move::Quiet {
+                    buffer.push(Move::normal(
                         from,
-                        to,
-                        piece: queen,
-                    })
-                }
-                let pinner_piece = if (BB::square(pinner) & b[their_queen]).any() {
-                    their_queen
-                } else {
-                    their_rook
-                };
-
-                buffer.push(Move::Capture {
-                    from,
-                    to: pinner,
-                    piece: queen,
-                    taken: pinner_piece,
-                });
-            }
-        }
-
-        // generate queen moves
-        for p in (b[queen] & !pinned).iter() {
-            let moves = self.rook_attacks(p, occupied) | self.bishop_attacks(p, occupied);
-            let captures = moves & their;
-            let quiet = moves & empty;
-
-            for to in quiet.iter() {
-                buffer.push(Move::Quiet {
-                    from: p,
-                    to,
-                    piece: queen,
-                });
-            }
-            for to in captures.iter() {
-                Self::gen_capture_move(b, p, to, queen, buffer);
+                        pinner,));
             }
         }
 
         // generate knight moves
         for p in (b[knight] & !pinned).iter() {
-            let moves = self.knight_attacks[p];
-            for to in (moves & empty).iter() {
-                buffer.push(Move::Quiet {
-                    from: p,
-                    to,
-                    piece: knight,
-                });
-            }
-            for to in (moves & their).iter() {
-                Self::gen_capture_move(b, p, to, knight, buffer);
+            let moves = self.knight_attacks[p] & !my;
+            for to in moves.iter() {
+                buffer.push(Move::normal(
+                    p,
+                    to,));
             }
         }
 
         // generate castle moves
+        {
+        let from = if black_turn { Square::E8 } else { Square::E1 };
         let castle_flag_shift = if black_turn { 2 } else { 0 };
         let castle_shift = if black_turn { 8 * 7 } else { 0 };
         let king_castle = ExtraState::WHITE_KING_CASTLE << castle_flag_shift;
@@ -889,39 +702,24 @@ impl MoveGenerator {
             let empty = occupied & (Self::CASTLE_KING_EMPTY_MASK << castle_shift);
             let attacked = attacked & (Self::CASTLE_KING_ATTACKED_MASK << castle_shift);
             if !((empty | attacked).any()) {
-                if white_turn {
-                    assert!(
-                        !((occupied & BB(0b01100000)).any()),
-                        "{:?}\n{:?}\n{:?}\n{:?}:{}",
-                        b,
-                        empty,
-                        attacked,
-                        Self::CASTLE_KING_EMPTY_MASK << castle_shift,
-                        castle_shift,
-                    );
-                }
-                buffer.push(Move::Castle { king: true });
+                let to = if black_turn { Square::G8 } else { Square::G1 };
+                buffer.push(Move::castle(from,to));
             }
         }
         if b.state.castle & queen_castle != 0 {
             let empty = occupied & (Self::CASTLE_QUEEN_EMPTY_MASK << castle_shift);
             let attacked = attacked & (Self::CASTLE_QUEEN_ATTACKED_MASK << castle_shift);
             if !((empty | attacked).any()) {
-                buffer.push(Move::Castle { king: false });
+                let to = if black_turn { Square::C8 } else { Square::C1 };
+                buffer.push(Move::castle(from,to));
             }
+        }
         }
 
         // generate king moves
-        let king_moves = self.king_attacks[king_square] & !attacked;
-        for to in (king_moves & empty).iter() {
-            buffer.push(Move::Quiet {
-                from: king_square,
-                to,
-                piece: king,
-            })
-        }
-        for to in (king_moves & their).iter() {
-            Self::gen_capture_move(b, king_square, to, king, buffer);
+        let king_moves = self.king_attacks[king_square] & !attacked & !my;
+        for to in (king_moves).iter() {
+            buffer.push(Move::normal(king_square,to));
         }
 
         // Generate pawn moves
@@ -936,50 +734,28 @@ impl MoveGenerator {
             let left_pawn_move: i8 = if white_turn { 7 } else { -7 };
             let left_pawn_attacks = Self::pawn_move_left(free_pawns, white_turn) & their;
             // filter out pieces which promote
-            let left_pawn_attacks_promote = left_pawn_attacks & last_rank;
             for p in (left_pawn_attacks & !last_rank).iter() {
-                Self::gen_capture_move(b, p - left_pawn_move, p, pawn, buffer);
+                buffer.push(Move::normal(p-left_pawn_move,p));
             }
-            for p in left_pawn_attacks_promote.iter() {
-                let position = BB::square(p);
-                for taken in Piece::player_pieces(white_turn) {
-                    if (position & b[taken]).any() {
-                        for promote in Piece::player_promote_pieces(black_turn) {
-                            buffer.push(Move::PromoteCapture {
-                                from: p - left_pawn_move,
-                                to: p,
-                                promote,
-                                taken,
-                            });
-                        }
-                        break;
-                    }
-                }
+            for p in (left_pawn_attacks & last_rank).iter() {
+                buffer.push(Move::promotion(p-left_pawn_move,p, Move::PROMOTION_QUEEN));
+                buffer.push(Move::promotion(p-left_pawn_move,p, Move::PROMOTION_KNIGHT));
+                buffer.push(Move::promotion(p-left_pawn_move,p, Move::PROMOTION_ROOK));
+                buffer.push(Move::promotion(p-left_pawn_move,p, Move::PROMOTION_BISHOP));
             }
 
             // attacks to the right of the pawn
             let right_pawn_move: i8 = if white_turn { 9 } else { -9 };
             let right_pawn_attacks = Self::pawn_move_right(free_pawns, white_turn) & their;
             // filter out pieces which promote
-            let right_pawn_attacks_promote = right_pawn_attacks & last_rank;
             for p in (right_pawn_attacks & !last_rank).iter() {
-                Self::gen_capture_move(b, p - right_pawn_move, p, pawn, buffer);
+                buffer.push(Move::normal(p-right_pawn_move,p));
             }
-            for p in right_pawn_attacks_promote.iter() {
-                let position = BB::square(p);
-                for taken in Piece::player_pieces(white_turn) {
-                    if (position & b[taken]).any() {
-                        for promote in Piece::player_promote_pieces(black_turn) {
-                            buffer.push(Move::PromoteCapture {
-                                from: p - right_pawn_move,
-                                to: p,
-                                promote,
-                                taken,
-                            });
-                        }
-                        break;
-                    }
-                }
+            for p in (right_pawn_attacks & last_rank).iter() {
+                buffer.push(Move::promotion(p-right_pawn_move,p, Move::PROMOTION_QUEEN));
+                buffer.push(Move::promotion(p-right_pawn_move,p, Move::PROMOTION_KNIGHT));
+                buffer.push(Move::promotion(p-right_pawn_move,p, Move::PROMOTION_ROOK));
+                buffer.push(Move::promotion(p-right_pawn_move,p, Move::PROMOTION_BISHOP));
             }
 
             //normal pawn advances
@@ -1003,27 +779,16 @@ impl MoveGenerator {
             let pawn_advance = pawn_advance & !last_rank;
 
             for p in pawn_advance.iter() {
-                buffer.push(Move::Quiet {
-                    from: p - pawn_move,
-                    to: p,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(p - pawn_move,p));
             }
             for p in pawn_double_advance.iter() {
-                buffer.push(Move::Quiet {
-                    from: p - (pawn_move * 2),
-                    to: p,
-                    piece: pawn,
-                })
+                buffer.push(Move::normal(p - pawn_move * 2,p));
             }
             for p in promated_advance.iter() {
-                for promote in Piece::player_promote_pieces(black_turn) {
-                    buffer.push(Move::Promote {
-                        from: p - pawn_move,
-                        to: p,
-                        promote,
-                    });
-                }
+                buffer.push(Move::promotion(p-pawn_move,p, Move::PROMOTION_QUEEN));
+                buffer.push(Move::promotion(p-pawn_move,p, Move::PROMOTION_KNIGHT));
+                buffer.push(Move::promotion(p-pawn_move,p, Move::PROMOTION_ROOK));
+                buffer.push(Move::promotion(p-pawn_move,p, Move::PROMOTION_BISHOP));
             }
 
             // moves for pawns which are pinned
@@ -1037,31 +802,17 @@ impl MoveGenerator {
 
             if left_attack_pinned.any() {
                 let to = left_attack_pinned.first_piece();
-                let taken = if (b[their_queen] & left_attack_pinned).any() {
-                    their_queen
-                } else {
-                    their_bishop
-                };
-                buffer.push(Move::Capture {
-                    piece: pawn,
-                    taken,
-                    from: to - left_pawn_move,
+                buffer.push(Move::normal(
+                    to - left_pawn_move,
                     to,
-                })
+                ));
             }
             if right_attack_pinned.any() {
                 let to = right_attack_pinned.first_piece();
-                let taken = if (b[their_queen] & right_attack_pinned).any() {
-                    their_queen
-                } else {
-                    their_bishop
-                };
-                buffer.push(Move::Capture {
-                    piece: pawn,
-                    taken,
-                    from: to - right_pawn_move,
+                buffer.push(Move::normal(
+                    to - right_pawn_move,
                     to,
-                })
+                ));
             }
         }
         false
@@ -1092,31 +843,5 @@ impl MoveGenerator {
         } else {
             b >> 8
         }
-    }
-
-    #[inline]
-    fn gen_capture_move<B: MoveBuffer>(
-        b: &Board,
-        from: Square,
-        to: Square,
-        piece: Piece,
-        buffer: &mut B,
-    ) {
-        let black_turn = !b.state.black_turn;
-        let position = BB::square(to);
-        let mut taken = Piece::WhiteKing;
-        for p in Piece::player_pieces(black_turn) {
-            if (position & b[p]).any() {
-                taken = p;
-                break;
-            }
-        }
-        debug_assert_ne!(taken, Piece::WhiteKing);
-        buffer.push(Move::Capture {
-            from,
-            to,
-            piece,
-            taken,
-        });
     }
 }

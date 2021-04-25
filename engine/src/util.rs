@@ -1,7 +1,7 @@
 use crate::{Direction, Piece, Square};
 use std::ops::{Index, IndexMut};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct BoardArray<T>([T; 64]);
 
 impl<T> BoardArray<T> {

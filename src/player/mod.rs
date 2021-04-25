@@ -1,6 +1,6 @@
 use crate::{board::RenderBoard, game::PlayedMove};
-use engine::{Move, MoveGenerator, Square,Piece};
-use ggez::event::MouseButton;
+use engine::{Move, MoveGenerator, Square};
+use ggez::event::{MouseButton,KeyCode};
 
 mod eval;
 pub use eval::ThreadedEval;
@@ -13,6 +13,9 @@ pub trait Player {
     }
 
     fn start_turn(&mut self, _board: &RenderBoard) {}
+
+    fn key_down(&mut self,_board: &mut RenderBoard, _key: KeyCode){
+    }
 
     fn mouse_button_down_event(
         &mut self,
@@ -71,7 +74,19 @@ impl Player for MousePlayer {
         self.possible_moves.clear();
         self.move_gen
             .gen_moves(&board.board, &mut self.possible_moves);
-        println!("possible moves: {:?}", self.possible_moves)
+        print!("possible moves:");
+        for m in self.possible_moves.iter(){
+            print!("{},",m);
+        }
+        println!();
+    }
+
+    fn key_down(&mut self, board: &mut RenderBoard, key: KeyCode) {
+        if key == KeyCode::Left{
+            board.undo_move();
+            self.possible_moves.clear();
+            self.move_gen.gen_moves(&board.board,&mut self.possible_moves);
+        }
     }
 
     fn mouse_motion_event(
@@ -124,64 +139,13 @@ impl Player for MousePlayer {
 
         if self.dragging {
             board.clear_drag();
-            if let Some(b_from) = self.holding.take() {
-                if let Some(b_to) = board.square([x, y]) {
+            if let Some(from) = self.holding.take() {
+                if let Some(to) = board.square([x, y]) {
                     for m in self.possible_moves.iter().copied() {
-                        match m {
-                            Move::Quiet{ from, to, .. } => {
-                                if from == b_from && to == b_to {
-                                    board.highlight(from, to);
-                                    board.make_move(m);
-                                    return PlayedMove::Move;
-                                }
-                            }
-                            Move::Capture{ from, to, .. } => {
-                                if from == b_from && to == b_to {
-                                    board.highlight(from, to);
-                                    board.make_move(m);
-                                    return PlayedMove::Move;
-                                }
-                            }
-                            Move::Castle{ king } => {
-                                if board.board.state.black_turn{
-                                    if b_from == Square::E8 && b_to == Square::G8 && king{
-                                        board.make_move(m);
-                                        board.highlight(b_from, b_to);
-                                        return PlayedMove::Move;
-                                    }
-                                    if b_from == Square::E8 && b_to == Square::C8 && !king{
-                                        board.make_move(m);
-                                        board.highlight(b_from, b_to);
-                                        return PlayedMove::Move;
-                                    }
-                                }else{
-                                    if b_from == Square::E1 && b_to == Square::G1 && king{
-                                        board.make_move(m);
-                                        board.highlight(b_from, b_to);
-                                        return PlayedMove::Move;
-                                    }
-                                    if b_from == Square::E1 && b_to == Square::C1 && !king{
-                                        board.make_move(m);
-                                        board.highlight(b_from, b_to);
-                                        return PlayedMove::Move;
-                                    }
-                                }
-                            }
-                            Move::Promote{promote,from,to,..} => {
-                                if from == b_from && to == b_to && (promote == Piece::WhiteQueen || promote == Piece::BlackQueen) {
-                                    board.highlight(from, to);
-                                    board.make_move(m);
-                                    return PlayedMove::Move;
-                                }
-                            }
-                            Move::PromoteCapture{promote,from,to,..} => {
-                                if from == b_from && to == b_to && (promote == Piece::WhiteQueen || promote == Piece::BlackQueen) {
-                                    board.highlight(from, to);
-                                    board.make_move(m);
-                                    return PlayedMove::Move;
-                                }
-                            }
-                            _ => {}
+                        if m.from() == from && m.to() == to{
+                            board.highlight(from, to);
+                            board.make_move(m);
+                            return PlayedMove::Move;
                         }
                     }
                 }

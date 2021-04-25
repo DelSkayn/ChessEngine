@@ -1,9 +1,9 @@
 use std::{
-    fmt::{self, Debug},
+    fmt::{self, Display},
     ops::{Add, Sub},
 };
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub struct Square(u8);
 
 impl Square {
@@ -117,7 +117,7 @@ impl Sub<i8> for Square {
     }
 }
 
-impl Debug for Square {
+impl Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let file = self.0 % 8;
         let rank = self.0 / 8;

@@ -4,7 +4,7 @@ use crate::{
     util::{BoardArray, PieceArray},
     Board, Move, Piece,
 };
-use std::{iter::Iterator, mem::MaybeUninit};
+use std::sync::{Arc, atomic::{Ordering,AtomicBool}};
 
 #[derive(Clone, Copy)]
 pub enum StoredValue {
@@ -16,73 +16,6 @@ pub enum StoredValue {
 impl Default for StoredValue {
     fn default() -> Self {
         StoredValue::Exact(0)
-    }
-}
-
-pub struct CaptureOnlyBuffer {
-    v: [MaybeUninit<Move>; 160],
-    len: usize,
-}
-
-impl CaptureOnlyBuffer {
-    pub fn new() -> Self {
-        CaptureOnlyBuffer {
-            v: [MaybeUninit::uninit(); 160],
-            len: 0,
-        }
-    }
-
-    fn iter(&self) -> CaptureOnlyIter {
-        CaptureOnlyIter {
-            len: self.len,
-            cur: 0,
-            v: &self.v,
-        }
-    }
-}
-
-pub struct CaptureOnlyIter<'a> {
-    len: usize,
-    cur: usize,
-    v: &'a [MaybeUninit<Move>; 160],
-}
-
-impl<'a> Iterator for CaptureOnlyIter<'a> {
-    type Item = &'a Move;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.len == self.cur {
-            return None;
-        }
-        let res = unsafe { &*self.v.get_unchecked(self.cur).as_ptr() };
-        self.cur += 1;
-        Some(res)
-    }
-}
-
-impl MoveBuffer for CaptureOnlyBuffer {
-    fn push(&mut self, mov: Move) {
-        match mov {
-            Move::Capture { .. } | Move::PromoteCapture { .. } => {}
-            _ => return,
-        }
-
-        assert!(self.len < 160);
-        self.v[self.len] = MaybeUninit::new(mov);
-        self.len += 1;
-    }
-
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    fn swap(&mut self, first: usize, second: usize) {
-        self.v.swap(first, second);
-    }
-
-    fn get(&self, which: usize) -> &Move {
-        assert!(self.len > which);
-        unsafe { &*self.v.get_unchecked(which).as_ptr() }
     }
 }
 
@@ -138,6 +71,7 @@ pub struct Eval {
     table_hits: usize,
     cut_offs: usize,
     value_lookup: PieceArray<i32>,
+    stop: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
@@ -199,7 +133,7 @@ impl Eval {
     ]);
     */
 
-    pub fn new(hasher: Hasher, hash_size: usize) -> Self {
+    pub fn new(hasher: Hasher, hash_size: usize,stop: Arc<AtomicBool>) -> Self {
         let mut value_lookup = PieceArray::new(0);
         value_lookup[Piece::WhiteKing] = 9999999;
         value_lookup[Piece::WhiteQueen] = Self::QUEEN_VALUE;
@@ -221,6 +155,7 @@ impl Eval {
             table_hits: 0,
             cut_offs: 0,
             value_lookup,
+            stop,
         }
     }
 
@@ -232,11 +167,11 @@ impl Eval {
         self.nodes_evaluated = 0;
         self.table_hits = 0;
         self.cut_offs = 0;
-        let mut depth = 1;
+        let mut depth = 0;
         let mut b = b.clone();
         let mut best_move = None;
         let best_move_idx = self.hashmap.lookup(b.hash).map(|x| x.best_move);
-        self.order_moves(&mut moves, best_move_idx);
+        self.order_moves(&b,&mut moves, best_move_idx);
         let white_turn = b.white_turn();
 
         let mut best_move_idx = best_move_idx.unwrap_or(0);
@@ -249,11 +184,12 @@ impl Eval {
         loop {
             let mut value = if white_turn { -i32::MAX } else { i32::MAX };
             for (idx, m) in moves.iter().copied().enumerate() {
+                let capture = b.on(m.to()).is_some();
                 let undo = b.make_move(m, &self.hasher);
                 let move_value = if white_turn {
-                    self.alpha_beta_min(&mut b, value, beta, !Self::is_move_capture(&m), depth)
+                    self.alpha_beta_min(&mut b, value, beta, depth,capture)
                 } else {
-                    self.alpha_beta_max(&mut b, alpha, value, !Self::is_move_capture(&m), depth)
+                    self.alpha_beta_max(&mut b, alpha, value, depth,capture)
                 };
                 b.unmake_move(undo, &self.hasher);
 
@@ -306,7 +242,7 @@ impl Eval {
             alpha = value - Self::PAWN_VALUE / 2;
             beta = value + Self::PAWN_VALUE / 2;
 
-            self.order_moves(&mut moves, Some(best_move_idx));
+            moves.swap(best_move_idx as usize,0);
 
             depth += 1;
         }
@@ -317,9 +253,14 @@ impl Eval {
         b: &mut Board,
         mut alpha: i32,
         mut beta: i32,
-        quiet: bool,
         depth: u16,
+        was_capture: bool
     ) -> i32 {
+        if self.stop.load(Ordering::Acquire){
+            let color = if b.white_turn() { -1 } else { 1 };
+            return color * Self::CHECK_VALUE;
+        }
+
         let mut stored_best_move = None;
         if let Some(x) = self.hashmap.lookup(b.hash) {
             stored_best_move = Some(x.best_move);
@@ -346,10 +287,10 @@ impl Eval {
         }
 
         if depth == 0 {
-            if quiet {
-                return self.eval_board(b);
-            } else {
+            if was_capture{
                 return self.quiesce_max(b, alpha, beta);
+            }else{
+                return self.eval_board(b);
             }
         }
 
@@ -360,17 +301,20 @@ impl Eval {
             return color * Self::CHECK_VALUE;
         }
 
-        self.order_moves(&mut buffer, stored_best_move);
+        self.order_moves(b,&mut buffer, stored_best_move);
 
         let mut best_move = 0u16;
 
         for (idx, m) in buffer.iter().copied().enumerate() {
+            #[cfg(debug_assertions)]
             let tmp = b.clone();
+            let capture = b.on(m.to()).is_some();
             let undo = b.make_move(m, &self.hasher);
-            b.assert_valid();
-            let value = self.alpha_beta_min(b, alpha, beta, !Self::is_move_capture(&m), depth - 1);
+            debug_assert!(b.is_valid());
+            let value = self.alpha_beta_min(b, alpha, beta, depth - 1,capture);
             b.unmake_move(undo, &self.hasher);
-            assert_eq!(tmp, *b);
+            #[cfg(debug_assertions)]
+            debug_assert!(tmp.is_equal(b),"{:#?}",b);
             if value > alpha {
                 best_move = idx as u16;
                 alpha = value;
@@ -405,9 +349,14 @@ impl Eval {
         b: &mut Board,
         mut alpha: i32,
         mut beta: i32,
-        quiet: bool,
         depth: u16,
+        was_capture: bool,
     ) -> i32 {
+        if self.stop.load(Ordering::Acquire){
+            let color = if b.white_turn() { -1 } else { 1 };
+            return color * Self::CHECK_VALUE;
+        }
+
         let mut stored_best_move = None;
         if let Some(x) = self.hashmap.lookup(b.hash) {
             stored_best_move = Some(x.best_move);
@@ -434,10 +383,10 @@ impl Eval {
         }
 
         if depth == 0 {
-            if quiet {
+            if was_capture{
+            return self.quiesce_min(b, alpha, beta);
+            }else{
                 return self.eval_board(b);
-            } else {
-                return self.quiesce_min(b, alpha, beta);
             }
         }
 
@@ -448,18 +397,20 @@ impl Eval {
             return color * Self::CHECK_VALUE;
         }
 
-        self.order_moves(&mut buffer, stored_best_move);
+        self.order_moves(b,&mut buffer, stored_best_move);
 
         let mut best_move = 0;
 
         for (idx, m) in buffer.iter().copied().enumerate() {
+            #[cfg(debug_assertions)]
             let tmp = b.clone();
+            let capture = b.on(m.to()).is_some();
             let undo = b.make_move(m, &self.hasher);
-            b.assert_valid();
-            let value = self.alpha_beta_max(b, alpha, beta, !Self::is_move_capture(&m), depth - 1);
+            debug_assert!(b.is_valid());
+            let value = self.alpha_beta_max(b, alpha, beta, depth - 1,capture);
             b.unmake_move(undo, &self.hasher);
-            b.assert_valid();
-            assert_eq!(tmp, *b);
+            #[cfg(debug_assertions)]
+            debug_assert!(tmp.is_equal(b),"{:#?}",b);
             if value < beta {
                 best_move = idx as u16;
                 beta = value;
@@ -498,13 +449,21 @@ impl Eval {
             alpha = value
         }
 
-        let mut buffer = CaptureOnlyBuffer::new();
+        let mut buffer = InlineBuffer::new();
         self.gen.gen_moves(b, &mut buffer);
-        self.order_moves(&mut buffer, None);
+        self.order_moves(b,&mut buffer, None);
         for m in buffer.iter().copied() {
+            if b.on(m.to()).is_none(){
+                continue;
+            }
+            #[cfg(debug_assertions)]
+            let tmp = b.clone();
             let undo = b.make_move(m, &self.hasher);
+            debug_assert!(b.is_valid(),"{:#?}",b);
             let value = self.quiesce_min(b, alpha, beta);
             b.unmake_move(undo, &self.hasher);
+            #[cfg(debug_assertions)]
+            debug_assert!(tmp.is_equal(b),"{:#?}",b);
 
             if value >= beta {
                 return beta;
@@ -525,13 +484,21 @@ impl Eval {
             beta = value
         }
 
-        let mut buffer = CaptureOnlyBuffer::new();
+        let mut buffer = InlineBuffer::new();
         self.gen.gen_moves(b, &mut buffer);
-        self.order_moves(&mut buffer, None);
+        self.order_moves(b,&mut buffer, None);
         for m in buffer.iter().copied() {
+            if b.on(m.to()).is_none(){
+                continue;
+            }
+            #[cfg(debug_assertions)]
+            let tmp = b.clone();
             let undo = b.make_move(m, &self.hasher);
+            assert!(b.is_valid(),"{:#?}",b);
             let value = self.quiesce_max(b, alpha, beta);
             b.unmake_move(undo, &self.hasher);
+            #[cfg(debug_assertions)]
+            assert!(tmp.is_equal(b),"{:#?}",b);
             if value <= alpha {
                 return alpha;
             }
@@ -690,7 +657,7 @@ impl Eval {
         piece_value
     }
 
-    pub fn order_moves<T>(&mut self, moves: &mut T, stored_best_move: Option<u16>)
+    pub fn order_moves<T>(&mut self,b: &Board, moves: &mut T, stored_best_move: Option<u16>)
     where
         T: MoveBuffer,
     {
@@ -709,9 +676,9 @@ impl Eval {
             return;
         }
 
-        let mut best_value = self.eval_move(moves.get(move_swap));
+        let mut best_value = self.eval_move(b,moves.get(move_swap));
         for i in move_swap + 1..moves.len() {
-            let v = self.eval_move(moves.get(move_swap));
+            let v = self.eval_move(b,moves.get(move_swap));
             if v > best_value {
                 moves.swap(move_swap, i);
                 best_value = v;
@@ -719,23 +686,16 @@ impl Eval {
         }
     }
 
-    pub fn eval_move(&mut self, mov: &Move) -> i32 {
-        match *mov {
-            Move::Capture { taken, piece, .. } => {
-                self.value_lookup[taken] * 100 + self.value_lookup[piece]
-            }
-            Move::PromoteCapture { taken, promote, .. } => {
-                self.value_lookup[taken] * 100 + Self::PAWN_VALUE + self.value_lookup[promote]
-            }
-            _ => 0,
+    pub fn eval_move(&mut self, b: &Board,mov: &Move) -> i32 {
+        let mut value = 0;
+        if let Some(taken) = b.on(mov.to()){
+            value += self.value_lookup[taken] * 100 + self.value_lookup[b.on(mov.from()).unwrap()]
         }
-    }
-
-    #[inline]
-    pub fn is_move_capture(mov: &Move) -> bool {
-        match mov {
-            Move::Capture { .. } | Move::PromoteCapture { .. } => true,
-            _ => false,
+        match mov.ty() {
+            Move::TYPE_CASTLE => value += 8,
+            Move::TYPE_PROMOTION => value += Self::PAWN_VALUE,
+            _ => {},
         }
+        value
     }
 }

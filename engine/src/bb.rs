@@ -1,4 +1,4 @@
-use super::Square;
+use super::{Square};
 use std::{
     fmt::{self, Debug},
     iter::Iterator,
@@ -156,9 +156,9 @@ impl Debug for BB {
             write!(f, "{}: |", j + 1)?;
             for i in 0..8 {
                 if *self & (1u64 << j * 8 + i) != BB::empty() {
-                    write!(f, "\x1b[0;107m. \x1b[0m")?;
+                    write!(f, "\x1b[97;107m. \x1b[0m")?;
                 } else {
-                    write!(f, "\x1b[0;100m  \x1b[0m")?;
+                    write!(f, "\x1b[0;100m. \x1b[0m")?;
                 }
                 if i == 7 {
                     write!(f, "|")?;

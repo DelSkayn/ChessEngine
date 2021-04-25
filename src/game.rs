@@ -1,7 +1,7 @@
 use engine::{hash::Hasher, Board};
 use ggez::{
     audio::{SoundSource, Source},
-    event::{EventHandler, MouseButton},
+    event::{EventHandler, MouseButton, KeyCode,KeyMods},
     graphics::{self, Color, Image, Rect},
     Context, GameResult,
 };
@@ -109,6 +109,14 @@ impl EventHandler for Chess {
 
         // Draw code here...
         graphics::present(ctx)
+    }
+
+    fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
+        if self.white_turn(){
+            self.white.key_down(&mut self.board,keycode);
+        }else{
+            self.black.key_down(&mut self.board,keycode);
+        }
     }
 
     fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {

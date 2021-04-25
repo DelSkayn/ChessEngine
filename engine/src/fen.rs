@@ -139,6 +139,12 @@ impl Board {
             }
         }
 
+        for p in Piece::WhiteKing.to(Piece::BlackPawn){
+            for s in board[p].iter(){
+                board.squares[s] = Some(p);
+            }
+        }
+
         board.hash = hasher.build(board.pieces, board.state);
 
         Ok(board)

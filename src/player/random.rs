@@ -44,16 +44,8 @@ impl Player for RandomPlayer {
         let mov = self.possible_moves[pick];
 
         board.clear_highlight();
-        match mov {
-            Move::Quiet{ from, to, .. } => {
-                board.highlight(from, to);
-            }
-            Move::Capture{ from, to, .. } => {
-                board.highlight(from, to);
-            }
-            _ => {}
-        }
 
+        board.highlight(mov.from(), mov.to());
         board.make_move(self.possible_moves[pick]);
 
         PlayedMove::Move
