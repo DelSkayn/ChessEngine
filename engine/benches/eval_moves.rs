@@ -4,11 +4,13 @@ use engine::{
     hash::Hasher,
     Board,
 };
+use std::sync::{Arc,atomic::AtomicBool};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let board = Board::start_position();
     let hasher = Hasher::new();
-    let mut eval = Eval::new(hasher, 1 << 16);
+    let stop = Arc::new(AtomicBool::new(false));
+    let mut eval = Eval::new(hasher, 1 << 16,stop);
 
     c.bench_function("eval_moves", |b| {
         b.iter(|| {
