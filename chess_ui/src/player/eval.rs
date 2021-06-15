@@ -1,8 +1,7 @@
 use super::Player;
 use crate::{board::RenderBoard, game::PlayedMove};
 use chess_core::{
-    engine::{Info, ShouldRun},
-    eval::Eval,
+    engine::{Info, ShouldRun, Engine},
     uci::ThreadManger,
     Move,
 };
@@ -16,8 +15,8 @@ pub struct ThreadedEval {
 }
 
 impl ThreadedEval {
-    pub fn new(search_time: f32) -> Self {
-        let manager = ThreadManger::new(Eval::new(), Self::handle_info);
+    pub fn new<E: Engine + Send>(search_time: f32, e: E) -> Self {
+        let manager = ThreadManger::new(e, Self::handle_info);
         ThreadedEval {
             search_time,
             time: None,

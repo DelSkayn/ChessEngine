@@ -1,156 +1,250 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 mod list;
 use chess_core::{
+    Piece,
+    hash::Hasher,
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
     gen3::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
     Board, Move, Player, UnmakeMove,
 };
-use list::{InlineList, List, NodeId};
+use list::{InlineVec, List, NodeId};
 use rand::Rng;
-use std::{collections::HashMap, mem};
+use std::{collections::HashMap, mem, io, fs};
 
-#[derive(Default)]
-pub struct ChildValue {
-    score: i32,
-    simulations: u32,
-    node: Option<NodeId>,
-}
 
 pub struct Node {
     parent: Option<NodeId>,
+    moves: InlineBuffer<128>,
     info: PositionInfo,
-    moves: InlineBuffer<64>,
-    children: InlineList<ChildValue, 64>,
+    simulations: u32,
+    score: f32,
+    children: InlineVec<(NodeId,Move),128>,
 }
 
 impl Node {
-    pub fn from_board(parent: Option<NodeId>, move_gen: &MoveGenerator, b: &Board) -> Self {
-        let moves = InlineBuffer::new();
-        let info = match b.state.player {
-            Player::White => {
-                move_gen.gen_moves_player::<White, gen_type::AllPseudo, _>(b, &mut moves)
-            }
-            Player::Black => {
-                move_gen.gen_moves_player::<Black, gen_type::AllPseudo, _>(b, &mut moves)
-            }
-        };
-
-        let children = InlineList::new();
-        for _ in 0..moves.len() {
-            children.push(Default::default());
-        }
-
+    pub fn new(parent: Option<NodeId>, b: &Board, move_gen: &MoveGenerator) -> Self {
+        let mut moves = InlineBuffer::new();
+        let info = move_gen.gen_moves::<gen_type::All,_>(&b,&mut moves);
         Node {
             parent,
             info,
+            simulations: 0,
+            score: 0.0,
             moves,
-            children,
+            children: InlineVec::new(),
         }
     }
 
-    pub fn swap_remove(&mut self, m: usize) {
-        self.moves.swap(m, self.moves.len() - 1);
-        self.moves.truncate(self.moves.len() - 1);
-        self.children.swap(m, self.children.len() - 1);
-        self.children.truncate(self.children.len() - 1);
+    pub fn fully_expanded(&self) -> bool{
+        self.moves.len() == 0
     }
 }
 
 pub struct Mcts {
     root: NodeId,
     list: List<Node>,
-    playouts: u32,
-    exploration: f32,
+    pub playouts: u32,
+    pub exploration: f32,
     board: Board,
     move_gen: MoveGenerator,
+    hasher: Hasher,
     iterations: u32,
+    pub retry_quites: bool,
 }
 
 impl Mcts {
-    fn iteration(&mut self) {
-        let mut board = self.board.clone();
-        let mut cur = self.root;
-        let parent_sim = self.iterations;
-        self.iterations += 1;
+    const SCORE_WIN: f32 = 1.0;
+    const SCORE_DRAW : f32 = 0.5;
+    const SCORE_LOSE: f32 = 0.0;
 
-        let (node, child_idx) = loop {
-            let (m, idx) = loop {
-                let mut best = 0;
-                let mut best_score = f32::MIN;
-                for (idx, c) in self.list[cur].children.iter().enumerate() {
-                    let score = c.score as f32 / c.simulations as f32
-                        + self.exploration * ((parent_sim as f32).log() / c.simulations).sqrt()
-                        + rand::thread_rng().gen() * 0.1;
-
-                    if score > best_score {
-                        best_score = score;
-                        best = idx;
-                    }
-                }
-                let m = self.list[cur].moves.get(best);
-                if self.move_gen.is_legal(&m, &self.b, &self.list.info) {
-                    break (m, best);
-                } else {
-                    self.list[cur].swap_remove(best);
-                }
-            };
-            board.make_move(m);
-
-            if let Some(x) = self.list[cur].children[idx].node {
-                cur = x;
-            } else {
-                break (cur, idx);
-            }
-        };
-
-        let score = 0;
-        for _ in 0..self.playouts {
-            score += self.simulate();
+    pub fn new() -> Mcts{
+        let mut list = List::new();
+        let board = Board::start_position();
+        let move_gen =  MoveGenerator::new();
+        Mcts{
+            root: list.insert(Node::new(None,&board,&move_gen)),
+            list,
+            playouts: 3,
+            board,
+            move_gen,
+            exploration: (2.0f32).sqrt(),
+            hasher: Hasher::new(),
+            iterations: 0,
+            retry_quites: false,
         }
-
-        let child_id = self
-            .list
-            .insert(Node::from_board(Some(node), &self.move_gen, &board));
-
-        self.list[node].children[child_idx].node = Some(child_id);
-        self.list[node].children[child_idx].score = score;
-        self.list[node].children[child_idx].simulations = 1;
-
-        while let
     }
 
-    fn simulate(&mut self, us: Player) -> i32 {
-        let board = self.board.clone();
-        loop {
-            let mut moves = InlineBuffer::<64>::new();
-            let info = self
-                .move_gen
-                .gen_moves::<gen_type::AllPseudo>(board, &mut moves);
+    fn iteration(&mut self) {
+        let mut board = self.board.clone();
+        let mut cur_node = self.root;
+        let mut rng = rand::thread_rng();
 
-            if moves.len() < 0 {
-                if board.state.player == us {
-                    return -1;
-                } else {
-                    return 1;
+        // Selection
+        loop{
+            if self.list[cur_node].fully_expanded(){
+
+                let mut best = None;
+                let mut best_score = f32::MIN;
+
+                for (c,m) in self.list[cur_node].children.iter().copied(){
+                    let n = &self.list[c];
+                    let score = n.score + rng.gen::<f32>() * 0.1;
+                    let simulations = n.simulations as f32;
+                    let root_simulations = self.list[cur_node].simulations as f32;
+
+                    let score = score / simulations + self.exploration * (root_simulations.ln() / simulations);
+                    if score > best_score{
+                        best_score = score;
+                        best = Some((c,m));
+                    }
+                }
+
+                if let Some((node_id,mov)) = best{
+                    board.make_move(mov, &self.hasher);
+                    cur_node = node_id;
+                }else{
+                    break;
+                }
+            }else{
+                let pick = rng.gen::<usize>() % self.list[cur_node].moves.len();
+                let mov = self.list[cur_node].moves.get(pick);
+                self.list[cur_node].moves.swap_remove(pick);
+                board.make_move(mov, &self.hasher);
+                let old_node = cur_node;
+                cur_node = self.list.insert(Node::new(Some(old_node),&board,&self.move_gen));
+                self.list[old_node].children.push((cur_node,mov));
+                break
+            }
+        }
+
+        // Simulate
+        let mut score = self.simulate(cur_node,&board, &mut rng);
+
+        // Propagate
+        loop{
+            self.list[cur_node].simulations += self.playouts;
+            self.list[cur_node].score += score;
+            score = self.playouts as f32 * Self::SCORE_WIN - score;
+            if let Some(p) = self.list[cur_node].parent{
+                cur_node = p;
+            }else{
+                break;
+            }
+        }
+    }
+
+    fn simulate(&mut self, node: NodeId, board: &Board, rng: &mut impl rand::Rng) -> f32 {
+        const MAX_ROLLOUT: usize = 10_000;
+
+        let node = &self.list[node];
+        let mut score = 0.0;
+
+        // No moves for node, it is either a checkmate or a stalemate
+        if node.moves.len() == 0{
+            if (node.info.attacked & board[Piece::player_king(board.state.player)]).any(){
+                return Self::SCORE_WIN * self.playouts as f32;
+            }else{
+                return self.playouts as f32 * Self::SCORE_DRAW;
+            }
+        }
+
+        for _ in 0..self.playouts{
+            let mut b = board.clone();
+            let pick = rng.gen::<usize>() % node.moves.len();
+            let first_move = node.moves.get(pick);
+            b.make_move(first_move,&self.hasher);
+            let mut move_buffer = InlineBuffer::<128>::new();
+            let mut info = self.move_gen.gen_moves::<gen_type::AllPseudo,_>(&b,&mut move_buffer);
+
+            'rollout: for i in 0..MAX_ROLLOUT{
+                if self.move_gen.drawn(&b,&info){
+                    score += Self::SCORE_DRAW;
+                    break;
+                }
+        
+                let mov = loop{
+                    if move_buffer.len() == 0{
+                        if (node.info.attacked & b[Piece::player_king(b.state.player)]).any(){
+                            if b.state.player == board.state.player{
+                                score += Self::SCORE_WIN;
+                            }
+                        }else{
+                            score += Self::SCORE_DRAW;
+                        }
+                        break 'rollout;
+                    }
+
+                    let pick = rng.gen::<usize>() % move_buffer.len();
+                    let mov = move_buffer.get(pick);
+                    if self.move_gen.is_legal(mov, &b,&info){
+                        if move_buffer.len() > 1 && self.should_retry(mov,&b,rng){
+                            move_buffer.swap_remove(pick);
+                        }else{
+                            break mov;
+                        }
+                    }else{
+                        move_buffer.swap_remove(pick);
+                    }
+                };
+
+                b.make_move(mov,&self.hasher);
+                move_buffer.clear();
+                info = self.move_gen.gen_moves::<gen_type::AllPseudo,_>(&b,&mut move_buffer);
+
+
+                if i == MAX_ROLLOUT - 1{
+                    score += Self::SCORE_DRAW;
+                    break;
                 }
             }
 
-            let m = loop {
-                let len = moves.len();
-                let m = rand::thread_rng().gen() % moves.len();
-                if self.move_gen.is_legal(moves.get(m), &board, &info) {
-                    moves.swap(m, len - 1);
-                    moves.truncate(len - 1);
-                } else {
-                    break moves.get(m);
-                }
-            };
-            board.make_move(m)
         }
+        score
+    }
+
+    fn should_retry(&self, mov: Move, b: &Board, rng: &mut impl rand::Rng) -> bool{
+        if !self.retry_quites{
+            return false;
+        }
+
+        rng.gen::<f32>() < 0.5 && (
+            b.on(mov.to()).is_none() ||
+            mov.ty() == Move::TYPE_PROMOTION && mov.promotion_piece() != Move::PROMOTION_QUEEN
+            )
+    }
+
+    pub fn dump_tree(&self){
+        use io::Write;
+        let mut file = fs::File::create("mcts.dot").unwrap();
+        writeln!(file,"digraph mcts{{").unwrap();
+        writeln!(file,"{} [label=\"root\"];",self.root.0).unwrap();
+        self.dump_tree_rec(&mut file,self.root).unwrap();
+        writeln!(file,"}}").unwrap();
+    }
+
+    fn dump_tree_rec(&self,f: &mut impl io::Write, node: NodeId) -> io::Result<()>{
+        let mut best_score = f32::MIN;
+        let mut best = None;
+        for (c,m) in self.list[node].children.iter().copied(){
+            writeln!(f,"{} [shape=record, label=\"{{ {}|{} }}\"];",c.0,m,self.list[c].score / self.list[c].simulations as f32)?;
+            writeln!(f,"{} -> {};",node.0,c.0)?;
+            let n = &self.list[c];
+            if n.score > best_score{
+                best_score = n.score;
+                best = Some(c);
+            }
+        }
+        if let Some(best) = best{
+            self.dump_tree_rec(f,best)?;
+        }
+        Ok(())
     }
 }
 
 impl Engine for Mcts {
-    fn set_board(&mut self, mut board: Board) {
+    fn set_board(&mut self, board: Board) {
         self.board = board;
     }
 
@@ -159,17 +253,53 @@ impl Engine for Mcts {
     }
 
     fn options(&self) -> HashMap<String, OptionKind> {
-        [].iter.cloned().collect()
+        [].iter().cloned().collect()
     }
     fn set_option(&mut self, _: String, _: OptionValue) {}
 
     fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
         &mut self,
-        mut f: F,
+        mut _f: F,
         fc: Fc,
     ) -> Option<Move> {
-        let root = self
+
+        self.iterations = 0;
+        self.list.clear();
+        self.root = self
             .list
-            .append(Node::from_board(None, &self.move_gen, &self.b));
+            .insert(Node::new(None, &self.board,&self.move_gen));
+
+        if self.list[self.root].moves.len() == 0{
+            return None;
+        }
+
+        while fc() == ShouldRun::Continue {
+            self.iteration();
+            self.iterations += 1;
+        }
+
+        println!("Iterations: {}",self.iterations);
+
+        let mut most_simulations = 0;
+        let mut m= None;
+        let mut score = 0.0;
+        for (c,mov) in self.list[self.root].children.iter().copied(){
+            let sim = self.list[c].simulations;
+            let cur_score = self.list[c].score;
+            println!("{}:{} = {}",mov,sim, cur_score / sim as f32);
+            if sim > most_simulations{
+                most_simulations = sim;
+                score = cur_score / sim as f32;
+                m = Some(mov);
+            }
+        }
+
+
+        println!("score: {}",score);
+
+        self.dump_tree();
+
+
+        return m;
     }
 }

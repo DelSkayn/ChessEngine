@@ -318,6 +318,7 @@ name = "chess_mcts"
 version = "0.1.0"
 dependencies = [
  "chess_core",
+ "rand 0.8.3",
 ]
 
 [[package]]
@@ -326,6 +327,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chess_core",
+ "chess_mcts",
  "euclid",
  "ggez",
  "rand 0.8.3",

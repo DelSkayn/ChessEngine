@@ -1,7 +1,8 @@
 use crate::{Direction, Piece, Square, BB};
 
 pub trait GenType {
-    const ONLY_CAPTURES: bool;
+    const QUIET: bool;
+    const CHECKS: bool;
     const LEGAL: bool;
 }
 
@@ -10,20 +11,30 @@ pub mod gen_type {
     pub struct Captures;
     pub struct All;
     pub struct AllPseudo;
+    pub struct CapturesChecksPseudo;
 
     impl GenType for Captures {
-        const ONLY_CAPTURES: bool = true;
+        const QUIET: bool = false;
         const LEGAL: bool = true;
+        const CHECKS: bool = false;
     }
 
     impl GenType for All {
-        const ONLY_CAPTURES: bool = false;
+        const QUIET: bool = true;
         const LEGAL: bool = true;
+        const CHECKS: bool = true;
     }
 
     impl GenType for AllPseudo {
-        const ONLY_CAPTURES: bool = false;
+        const QUIET: bool = true;
         const LEGAL: bool = false;
+        const CHECKS: bool = true;
+    }
+
+    impl GenType for CapturesChecksPseudo{
+        const QUIET: bool = false;
+        const LEGAL: bool = false;
+        const CHECKS: bool = true;
     }
 }
 

@@ -55,6 +55,9 @@ impl BB {
     pub const EMPTY: BB = BB(0);
     pub const FULL: BB = BB(0xFFFF_FFFF_FFFF_FFFF);
 
+    pub const WHITE_SQUARES: BB = BB(0x55AA55AA_55AA55AA);
+    pub const BLACK_SQUARES: BB = BB(0xAA55AA55_AA55AA55);
+
     /// Returns a board with only the given square enabled
     #[inline]
     pub const fn square(s: Square) -> Self {
