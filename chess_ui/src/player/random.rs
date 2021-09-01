@@ -1,9 +1,8 @@
 use super::Player;
 use crate::{game::PlayedMove, RenderBoard};
 use chess_core::{gen2::MoveGenerator, Move};
-use ggez::event::MouseButton;
 use rand::{thread_rng, Rng};
-use std::time::{Duration,Instant};
+use std::time::{Duration, Instant};
 
 pub struct RandomPlayer {
     move_gen: MoveGenerator,
@@ -16,7 +15,7 @@ impl RandomPlayer {
         RandomPlayer {
             move_gen: MoveGenerator::new(),
             possible_moves: Vec::new(),
-            time: Instant::now()
+            time: Instant::now(),
         }
     }
 }
@@ -29,10 +28,7 @@ impl Player for RandomPlayer {
         self.time = Instant::now()
     }
 
-    fn update(
-        &mut self,
-        board: &mut RenderBoard,
-    ) -> PlayedMove {
+    fn update(&mut self, board: &mut RenderBoard) -> PlayedMove {
         if self.possible_moves.is_empty() || self.time.elapsed() < Duration::from_secs_f32(0.5) {
             return PlayedMove::Didnt;
         }

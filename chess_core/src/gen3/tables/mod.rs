@@ -1,6 +1,6 @@
 mod magic;
 use crate::{util::BoardArray, Square, BB};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Once;
 
 static mut KNIGHT_ATTACKS: BoardArray<BB> = BoardArray::new_array([BB::empty(); 64]);
 static mut KING_ATTACKS: BoardArray<BB> = BoardArray::new_array([BB::empty(); 64]);
@@ -11,7 +11,7 @@ static mut LINES: BoardArray<BoardArray<BB>> =
 static mut BETWEEN: BoardArray<BoardArray<BB>> =
     BoardArray::new_array([BoardArray::new_array([BB::empty(); 64]); 64]);
 
-static TABLE_INITIALIZED: AtomicBool = AtomicBool::new(false);
+static TABLE_INITIALIZED: Once = Once::new();
 
 #[derive(Clone, Copy)]
 pub struct Tables;
@@ -22,42 +22,48 @@ impl Tables {
         // Writing new values while in use will not lead to problems with race conditions
         // since the values written are the same as the previous.
         // The only thing that we should prevent is reading from unitialized tables.
-        if !TABLE_INITIALIZED.load(Ordering::Acquire) {
+        TABLE_INITIALIZED.call_once(|| {
             magic::init();
             knight_attacks_init();
             king_attacks_init();
             lines_init();
             between_init();
-            TABLE_INITIALIZED.store(true, Ordering::Release);
-        }
+        });
 
         Tables
     }
 
+    #[inline(always)]
     pub fn rook_attacks(self, sq: Square, occupied: BB) -> BB {
         magic::rook_attacks(sq, occupied)
     }
 
+    #[inline(always)]
     pub fn bishop_attacks(self, sq: Square, occupied: BB) -> BB {
         magic::bishop_attacks(sq, occupied)
     }
 
+    #[inline(always)]
     pub fn king_attacks(self, sq: Square) -> BB {
         unsafe { KING_ATTACKS[sq] }
     }
 
+    #[inline(always)]
     pub fn knight_attacks(self, sq: Square) -> BB {
         unsafe { KNIGHT_ATTACKS[sq] }
     }
 
+    #[inline(always)]
     pub fn aligned(self, a: Square, b: Square, c: Square) -> bool {
         unsafe { (LINES[a][b] & BB::square(c)).any() }
     }
 
+    #[inline(always)]
     pub fn line(self, from: Square, to: Square) -> BB {
         unsafe { LINES[from][to] }
     }
 
+    #[inline(always)]
     pub fn between(self, from: Square, to: Square) -> BB {
         unsafe { BETWEEN[from][to] }
     }

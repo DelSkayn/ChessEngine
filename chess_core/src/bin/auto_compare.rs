@@ -1,6 +1,5 @@
 use chess_core::{
     gen3::{gen_type, InlineBuffer, MoveGenerator, MoveList},
-    hash::Hasher,
     Board, Move,
 };
 use std::{
@@ -114,12 +113,11 @@ fn main() -> Result<()> {
     let mut stockfish = StockFish::new()?;
     stockfish.set_moves(&board, &[])?;
 
-    let hasher = Hasher::new();
     let move_gen = MoveGenerator::new();
 
     let mut count = 0;
     println!("running perft depth {}", depth);
-    let my_perft = perft(&move_gen, &mut board, &hasher, depth, &mut count);
+    let my_perft = perft(&move_gen, &mut board, depth, &mut count);
     println!("running stockfish perft");
     let stock_perft = stockfish.perft(depth)?;
 
@@ -139,11 +137,11 @@ fn main() -> Result<()> {
         stockfish.draw()?;
         let mut board = board.clone();
         for m in moves.iter().copied() {
-            board.make_move(m, &hasher);
+            board.make_move(m);
         }
 
         println!("running perft");
-        let my_perft = perft(&move_gen, &mut board, &hasher, i, &mut count);
+        let my_perft = perft(&move_gen, &mut board, i, &mut count);
         for (m, c) in my_perft.iter() {
             println!("{}\t{}", m, c);
         }
@@ -172,7 +170,6 @@ fn main() -> Result<()> {
 fn perft(
     gen: &MoveGenerator,
     b: &mut Board,
-    hasher: &Hasher,
     depth: usize,
     count: &mut usize,
 ) -> Vec<(Move, usize)> {
@@ -182,16 +179,16 @@ fn perft(
     for i in 0..buffer.len() {
         let m = buffer.get(i);
         let last = *count;
-        let m = b.make_move(m, hasher);
-        perft_rec(gen, b, hasher, depth - 1, count);
-        b.unmake_move(m, hasher);
+        let m = b.make_move(m);
+        perft_rec(gen, b, depth - 1, count);
+        b.unmake_move(m);
         //println!("{}:{}", m.mov, cnt);
         res.push((m.mov, *count - last));
     }
     res
 }
 
-fn perft_rec(gen: &MoveGenerator, b: &mut Board, hasher: &Hasher, depth: usize, count: &mut usize) {
+fn perft_rec(gen: &MoveGenerator, b: &mut Board, depth: usize, count: &mut usize) {
     if depth == 0 {
         *count += 1;
         return;
@@ -200,8 +197,8 @@ fn perft_rec(gen: &MoveGenerator, b: &mut Board, hasher: &Hasher, depth: usize, 
     gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
     for i in 0..buffer.len() {
         let m = buffer.get(i);
-        let m = b.make_move(m, hasher);
-        perft_rec(gen, b, hasher, depth - 1, count);
-        b.unmake_move(m, hasher);
+        let m = b.make_move(m);
+        perft_rec(gen, b, depth - 1, count);
+        b.unmake_move(m);
     }
 }

@@ -40,11 +40,11 @@ fn perft(
     for i in 0..buffer.len() {
         let m = buffer.get(i);
         let last = *count;
-        let m = b.make_move(m, hasher);
+        let m = b.make_move(m);
         perft(gen, b, hasher, depth - 1, count, false);
         if root {
             println!("nodes after '{}':{}", m.mov, *count - last);
         }
-        b.unmake_move(m, hasher);
+        b.unmake_move(m);
     }
 }

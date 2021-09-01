@@ -1,11 +1,13 @@
 use crate::{
+    engine::ShouldRun,
     gen3::{InlineBuffer, MoveList},
     Board, Move, Piece, Player,
 };
 
 use super::*;
-
 impl Eval {
+    const MAX_DEPTH: u8 = 99;
+
     pub fn alpha_beta_max(
         &mut self,
         b: &mut Board,
@@ -62,10 +64,10 @@ impl Eval {
         let mut best_move = 0u16;
 
         for (idx, m) in buffer.iter().copied().enumerate() {
-            let undo = b.make_move(m, &self.hasher);
+            let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.alpha_beta_min(b, alpha, beta, depth - 1, stop);
-            b.unmake_move(undo, &self.hasher);
+            b.unmake_move(undo);
             if value > alpha {
                 best_move = idx as u16;
                 alpha = value;
@@ -147,10 +149,10 @@ impl Eval {
         let mut best_move = 0;
 
         for (idx, m) in buffer.iter().copied().enumerate() {
-            let undo = b.make_move(m, &self.hasher);
+            let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.alpha_beta_max(b, alpha, beta, depth - 1, stop);
-            b.unmake_move(undo, &self.hasher);
+            b.unmake_move(undo);
             if value < beta {
                 best_move = idx as u16;
                 beta = value;
@@ -196,10 +198,10 @@ impl Eval {
             if b.on(m.to()).is_none() {
                 continue;
             }
-            let undo = b.make_move(m, &self.hasher);
+            let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.quiesce_min(b, alpha, beta);
-            b.unmake_move(undo, &self.hasher);
+            b.unmake_move(undo);
 
             if value >= beta {
                 return beta;
@@ -227,10 +229,10 @@ impl Eval {
             if b.on(m.to()).is_none() {
                 continue;
             }
-            let undo = b.make_move(m, &self.hasher);
+            let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.quiesce_max(b, alpha, beta);
-            b.unmake_move(undo, &self.hasher);
+            b.unmake_move(undo);
             if value <= alpha {
                 return alpha;
             }

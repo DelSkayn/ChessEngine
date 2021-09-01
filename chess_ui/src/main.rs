@@ -1,6 +1,8 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
-use chess_core::{hash::Hasher, Board, eval::Eval};
+use chess_alpha_beta::AlphaBeta;
+use chess_core::{eval::Eval, hash::Hasher, Board};
 use chess_mcts::Mcts;
 use ggez::{
     conf::{WindowMode, WindowSetup},
@@ -13,7 +15,7 @@ mod board;
 mod game;
 use board::RenderBoard;
 mod player;
-use player::{MousePlayer, Player, ThreadedEval, RandomPlayer};
+use player::{MousePlayer, Player, RandomPlayer, ThreadedEval};
 
 #[derive(Debug, StructOpt)]
 pub struct Opt {
@@ -45,9 +47,9 @@ fn main() {
     let black: Box<dyn Player> = if args.self_play {
         let mut engine = Mcts::new();
         engine.retry_quites = true;
-        Box::new(ThreadedEval::new(2.0,Mcts::new()))
+        Box::new(MousePlayer::new())
     } else {
-        Box::new(ThreadedEval::new(2.0, Eval::new()))
+        Box::new(ThreadedEval::new(2.0, AlphaBeta::new()))
     };
 
     // Make a Context.

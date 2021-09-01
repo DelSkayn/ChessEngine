@@ -3,6 +3,7 @@ members = [
     "chess_ui",
     "chess_core",
     "chess_mcts",
+    "chess_alpha_beta",
     "find_magic",
 ]
 

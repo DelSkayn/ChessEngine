@@ -22,16 +22,16 @@ pub mod gen_type {
     impl GenType for All {
         const QUIET: bool = true;
         const LEGAL: bool = true;
-        const CHECKS: bool = true;
+        const CHECKS: bool = false;
     }
 
     impl GenType for AllPseudo {
         const QUIET: bool = true;
         const LEGAL: bool = false;
-        const CHECKS: bool = true;
+        const CHECKS: bool = false;
     }
 
-    impl GenType for CapturesChecksPseudo{
+    impl GenType for CapturesChecksPseudo {
         const QUIET: bool = false;
         const LEGAL: bool = false;
         const CHECKS: bool = true;

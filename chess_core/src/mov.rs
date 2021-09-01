@@ -111,6 +111,10 @@ impl fmt::Debug for Move {
 
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self == Self::INVALID {
+            return write!(f, "INVALID");
+        }
+
         if self.ty() == Self::TYPE_CASTLE {
             if self.to() == Square::C1 || self.to() == Square::C8 {
                 return write!(f, "O-O({},{})", self.from(), self.to());

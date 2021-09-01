@@ -4,6 +4,7 @@ mod fen;
 //mod gen;
 mod bb;
 mod board;
+pub mod board2;
 pub mod engine;
 pub mod eval;
 mod extra_state;

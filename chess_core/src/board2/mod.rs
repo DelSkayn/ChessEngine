@@ -1,13 +1,14 @@
 use crate::{
-    hash::Hasher,
     util::{BoardArray, PieceArray},
     ExtraState, Move, Piece, Player, Square, BB,
 };
 use std::{
     fmt::{self, Debug},
     iter::Iterator,
-    ops::{Index, IndexMut},
 };
+
+mod chain;
+pub use chain::{EndChain, HashChain, MoveChain};
 
 /// A move which has been made on the board with
 /// extra information regarding undoing the move
@@ -16,47 +17,43 @@ pub struct UnmakeMove {
     pub mov: Move,
     taken: Option<Piece>,
     state: ExtraState,
-    hash: u64,
 }
 
 /// A position on the board.
 #[derive(Eq, PartialEq, Clone)]
-pub struct Board {
+pub struct Board<C: MoveChain = EndChain> {
     pub pieces: PieceArray<BB>,
     pub state: ExtraState,
     pub squares: BoardArray<Option<Piece>>,
-    pub hash: u64,
-    pub hasher: Hasher,
-    pub m: Vec<Move>,
+    pub chain: C,
 }
 
-impl Board {
+impl Board<EndChain> {
     /// Returns a empty board
     ///
     /// Board has not initialized the hash value
     pub fn empty() -> Self {
-        let hasher = Hasher::new();
-
         let pieces = PieceArray::new_array([BB::EMPTY; 12]);
         let squares = BoardArray::new_array([None; 64]);
         let state = ExtraState::empty();
 
-        let hash = hasher.build(&pieces, state);
-
         Board {
-            hasher,
             pieces,
             squares,
             state,
-            hash,
-            m: Vec::new(),
+            chain: EndChain,
         }
     }
+}
 
+impl<C> Board<C>
+where
+    C: MoveChain,
+{
     /// Returns a board in the start position
     ///
     /// Board has not initialized the hash value
-    pub fn start_position() -> Self {
+    pub fn start_position(mut chain: C) -> Self {
         let mut res = Board::empty();
         res.state.castle = ExtraState::BLACK_KING_CASTLE
             | ExtraState::BLACK_QUEEN_CASTLE
@@ -64,56 +61,56 @@ impl Board {
             | ExtraState::WHITE_QUEEN_CASTLE;
         res.state.player = Player::White;
 
-        res[Piece::WhiteKing] = BB::E1;
+        res.pieces[Piece::WhiteKing] = BB::E1;
         res.squares[Square::E1] = Some(Piece::WhiteKing);
-        res[Piece::WhiteQueen] = BB::D1;
+        res.pieces[Piece::WhiteQueen] = BB::D1;
         res.squares[Square::D1] = Some(Piece::WhiteQueen);
-        res[Piece::WhiteBishop] = BB::C1 | BB::F1;
+        res.pieces[Piece::WhiteBishop] = BB::C1 | BB::F1;
         res.squares[Square::C1] = Some(Piece::WhiteBishop);
         res.squares[Square::F1] = Some(Piece::WhiteBishop);
-        res[Piece::WhiteKnight] = BB::B1 | BB::G1;
+        res.pieces[Piece::WhiteKnight] = BB::B1 | BB::G1;
         res.squares[Square::B1] = Some(Piece::WhiteKnight);
         res.squares[Square::G1] = Some(Piece::WhiteKnight);
-        res[Piece::WhiteRook] = BB::A1 | BB::H1;
+        res.pieces[Piece::WhiteRook] = BB::A1 | BB::H1;
         res.squares[Square::A1] = Some(Piece::WhiteRook);
         res.squares[Square::H1] = Some(Piece::WhiteRook);
-        res[Piece::WhitePawn] = BB::RANK_2;
+        res.pieces[Piece::WhitePawn] = BB::RANK_2;
         for f in 0..8 {
             res.squares[Square::from_file_rank(f, 1)] = Some(Piece::WhitePawn);
         }
 
-        res[Piece::BlackKing] = BB::E8;
+        res.pieces[Piece::BlackKing] = BB::E8;
         res.squares[Square::E8] = Some(Piece::BlackKing);
-        res[Piece::BlackQueen] = BB::D8;
+        res.pieces[Piece::BlackQueen] = BB::D8;
         res.squares[Square::D8] = Some(Piece::BlackQueen);
-        res[Piece::BlackBishop] = BB::C8 | BB::F8;
+        res.pieces[Piece::BlackBishop] = BB::C8 | BB::F8;
         res.squares[Square::C8] = Some(Piece::BlackBishop);
         res.squares[Square::F8] = Some(Piece::BlackBishop);
-        res[Piece::BlackKnight] = BB::B8 | BB::G8;
+        res.pieces[Piece::BlackKnight] = BB::B8 | BB::G8;
         res.squares[Square::B8] = Some(Piece::BlackKnight);
         res.squares[Square::G8] = Some(Piece::BlackKnight);
-        res[Piece::BlackRook] = BB::A8 | BB::H8;
+        res.pieces[Piece::BlackRook] = BB::A8 | BB::H8;
         res.squares[Square::A8] = Some(Piece::BlackRook);
         res.squares[Square::H8] = Some(Piece::BlackRook);
-        res[Piece::BlackPawn] = BB::RANK_7;
+        res.pieces[Piece::BlackPawn] = BB::RANK_7;
         for f in 0..8 {
             res.squares[Square::from_file_rank(f, 6)] = Some(Piece::BlackPawn);
         }
 
-        res.hash = res.hasher.build(&res.pieces, res.state);
+        chain.position(&res.pieces, res.state);
 
-        res
+        Board {
+            pieces: res.pieces,
+            squares: res.squares,
+            state: res.state,
+            chain,
+        }
     }
 
     pub fn is_equal(&self, other: &Self) -> bool {
-        if self.hash != other.hash {
-            println!("hash not equal");
-            return false;
-        }
-
         for p in Piece::WhiteKing.to(Piece::BlackPawn) {
-            if self[p] != other[p] {
-                println!("{:?}:{:?} != {:?}", p, self[p], other[p]);
+            if self.pieces[p] != other.pieces[p] {
+                println!("{:?}:{:?} != {:?}", p, self.pieces[p], other.pieces[p]);
                 return false;
             }
         }
@@ -135,23 +132,29 @@ impl Board {
     pub fn is_valid(&self) -> bool {
         let mut res = true;
 
-        if self[Piece::WhiteKing].count() != 1 {
+        if self.pieces[Piece::WhiteKing].count() != 1 {
             res = false;
-            eprintln!("Wrong number of white kings\n{:?}", self[Piece::WhiteKing]);
+            eprintln!(
+                "Wrong number of white kings\n{:?}",
+                self.pieces[Piece::WhiteKing]
+            );
         }
-        if self[Piece::BlackKing].count() != 1 {
+        if self.pieces[Piece::BlackKing].count() != 1 {
             res = false;
-            eprintln!("Wrong number of black kings\n{:?}", self[Piece::BlackKing]);
+            eprintln!(
+                "Wrong number of black kings\n{:?}",
+                self.pieces[Piece::BlackKing]
+            );
         }
         for pa in Piece::WhiteKing.to(Piece::BlackPawn) {
             for pb in Piece::WhiteKing.to(pa) {
                 if pa == pb {
                     continue;
                 }
-                if !(self[pa] & self[pb]).none() {
+                if !(self.pieces[pa] & self.pieces[pb]).none() {
                     eprintln!(
                         "Overlap in bitboards: {:?} {:?}\n{:?}{:?}",
-                        pa, pb, self[pa], self[pb]
+                        pa, pb, self.pieces[pa], self.pieces[pb]
                     );
                     res = false;
                 }
@@ -161,15 +164,15 @@ impl Board {
         for s in 0..64 {
             let s = Square::new(s);
             if let Some(x) = self.squares[s] {
-                if !(self[x] & BB::square(s)).any() {
-                    eprintln!("mailbox-bitboard mismatch, Square {} should contain {:?} but bitboard does not:\n{:?}",s,x,self[x]);
+                if !(self.pieces[x] & BB::square(s)).any() {
+                    eprintln!("mailbox-bitboard mismatch, Square {} should contain {:?} but bitboard does not:\n{:?}",s,x,self.pieces[x]);
                     res = false;
                 }
             } else {
                 let sb = BB::square(s);
                 for p in Piece::WhiteKing.to(Piece::BlackPawn) {
-                    if !(self[p] & sb).none() {
-                        eprintln!("mailbox-bitboard mismatch, Square {} should be empty but contains {:?} on bitboard\n{:?}",s,p,self[p]);
+                    if !(self.pieces[p] & sb).none() {
+                        eprintln!("mailbox-bitboard mismatch, Square {} should be empty but contains {:?} on bitboard\n{:?}",s,p,self.pieces[p]);
                         res = false;
                     }
                 }
@@ -179,10 +182,7 @@ impl Board {
         res
     }
 
-    pub fn calc_hash(&mut self, hasher: &Hasher) {
-        self.hash = hasher.build(&self.pieces, self.state);
-    }
-
+    /*
     pub fn flip(mut self) -> Self {
         for p in Piece::WhiteKing.to(Piece::WhitePawn) {
             let cur = p;
@@ -199,87 +199,97 @@ impl Board {
         self.state = self.state.flip();
         return self;
     }
+    */
+
+    #[inline]
+    fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
+        self.squares[to] = Some(piece);
+        self.squares[from] = None;
+        self.pieces[piece] ^= BB::square(from) | BB::square(to);
+        self.chain.move_piece(piece, from, to);
+    }
+
+    #[inline]
+    fn take_piece(&mut self, taken: Piece, square: Square) {
+        self.pieces[taken] ^= BB::square(square);
+        self.chain.take_piece(taken, square);
+    }
+
+    #[inline]
+    fn untake_piece(&mut self, taken: Piece, square: Square) {
+        self.pieces[taken] ^= BB::square(square);
+        self.squares[square] = Some(taken);
+        self.chain.untake_piece(taken, square);
+    }
+
+    #[inline]
+    fn promote_piece(&mut self, piece: Piece, promote: Piece, from: Square, to: Square) {
+        self.pieces[piece] ^= BB::square(from);
+        self.pieces[promote] ^= BB::square(to);
+        self.squares[from] = None;
+        self.squares[to] = Some(promote);
+        self.chain.promote_piece(piece, promote, from, to);
+    }
+
+    fn unpromote_piece(&mut self, piece: Piece, promote: Piece, from: Square, to: Square) {
+        self.pieces[piece] ^= BB::square(from);
+        self.pieces[promote] ^= BB::square(to);
+        self.squares[to] = None;
+        self.squares[from] = Some(piece);
+        self.chain.unpromote_piece(piece, promote, from, to);
+    }
 
     /// Make a move on the board.
     pub fn make_move(&mut self, m: Move) -> UnmakeMove {
-        self.m.push(m);
         assert_ne!(m, Move::INVALID);
         //debug_assert!(self.hash != 0);
         let state = self.state;
-        let hash = self.hash;
-        self.hash ^= self.hasher.black();
-        self.hash ^= self.hasher.castle()[self.state.castle as usize];
+
+        self.chain.move_start(self.state);
 
         self.state.en_passant = ExtraState::INVALID_ENPASSANT;
 
         let from = m.from();
         let to = m.to();
         let ty = m.ty();
-        if self.squares[from].is_none() {
+        /*if self.squares[from].is_none() {
             println!("{:?}", self);
             println!("{}", self);
-        }
+        }*/
         let piece = self.squares[from].unwrap();
         let mut taken = self.squares[to];
-        assert_ne!(taken, Some(Piece::WhiteKing), "{:?}", self.m);
-        assert_ne!(taken, Some(Piece::BlackKing), "{:?}", self.m);
+        assert_ne!(taken, Some(Piece::WhiteKing));
+        assert_ne!(taken, Some(Piece::BlackKing));
 
-        self.squares[from] = None;
         let mut castle_mask = 0;
 
         if ty == Move::TYPE_NORMAL {
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[piece][to];
-            self[piece] ^= BB::square(from) | BB::square(to);
-            self.squares[to] = Some(piece);
-            self.squares[from] = None;
-
+            self.move_piece(piece, from, to);
             if let Some(taken) = taken {
-                self.hash ^= self.hasher.pieces()[taken][to];
-                self[taken] ^= BB::square(to);
+                self.take_piece(taken, to);
             }
 
             if m.is_double_move() {
                 self.state.en_passant = from.file();
             }
         } else if ty == Move::TYPE_CASTLE {
-            let king = piece;
-            self[king] ^= BB::square(from) | BB::square(to);
-            self.squares[to] = Some(king);
-            self.hash ^= self.hasher.pieces()[king][from];
-            self.hash ^= self.hasher.pieces()[king][to];
+            self.move_piece(piece, from, to);
 
             match to {
                 Square::C1 => {
-                    self.squares[Square::A1] = None;
-                    self.squares[Square::D1] = Some(Piece::WhiteRook);
-                    self[Piece::WhiteRook] ^= BB::A1 | BB::D1;
-                    self.hash ^= self.hasher.pieces()[Piece::WhiteRook][Square::A1];
-                    self.hash ^= self.hasher.pieces()[Piece::WhiteRook][Square::D1];
+                    self.move_piece(Piece::WhiteRook, Square::A1, Square::D1);
                     castle_mask = ExtraState::WHITE_KING_CASTLE | ExtraState::WHITE_QUEEN_CASTLE;
                 }
                 Square::G1 => {
-                    self.squares[Square::H1] = None;
-                    self.squares[Square::F1] = Some(Piece::WhiteRook);
-                    self[Piece::WhiteRook] ^= BB::H1 | BB::F1;
-                    self.hash ^= self.hasher.pieces()[Piece::WhiteRook][Square::H1];
-                    self.hash ^= self.hasher.pieces()[Piece::WhiteRook][Square::F1];
+                    self.move_piece(Piece::WhiteRook, Square::H1, Square::F1);
                     castle_mask = ExtraState::WHITE_KING_CASTLE | ExtraState::WHITE_QUEEN_CASTLE;
                 }
                 Square::C8 => {
-                    self.squares[Square::A8] = None;
-                    self.squares[Square::D8] = Some(Piece::BlackRook);
-                    self[Piece::BlackRook] ^= BB::A8 | BB::D8;
-                    self.hash ^= self.hasher.pieces()[Piece::BlackRook][Square::A8];
-                    self.hash ^= self.hasher.pieces()[Piece::BlackRook][Square::D8];
+                    self.move_piece(Piece::BlackRook, Square::A8, Square::D8);
                     castle_mask = ExtraState::BLACK_KING_CASTLE | ExtraState::BLACK_QUEEN_CASTLE;
                 }
                 Square::G8 => {
-                    self.squares[Square::H8] = None;
-                    self.squares[Square::F8] = Some(Piece::BlackRook);
-                    self[Piece::BlackRook] ^= BB::H8 | BB::F8;
-                    self.hash ^= self.hasher.pieces()[Piece::BlackRook][Square::H8];
-                    self.hash ^= self.hasher.pieces()[Piece::BlackRook][Square::F8];
+                    self.move_piece(Piece::BlackRook, Square::H8, Square::F8);
                     castle_mask = ExtraState::BLACK_KING_CASTLE | ExtraState::BLACK_QUEEN_CASTLE;
                 }
                 _ => unreachable!(),
@@ -294,31 +304,19 @@ impl Board {
                 _ => unreachable!(),
             };
 
-            self[piece] ^= BB::square(from);
-            self[promote] ^= BB::square(to);
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[promote][to];
-            self.squares[to] = Some(promote);
+            self.promote_piece(piece, promote, from, to);
 
             if let Some(taken) = taken {
-                self.hash ^= self.hasher.pieces()[taken][to];
-                self[taken] ^= BB::square(to);
+                self.take_piece(taken, to)
             }
         } else if ty == Move::TYPE_EN_PASSANT {
             let (taken_sq, taken_piece) = match self.state.player {
                 Player::White => (to - 8i8, Piece::BlackPawn),
                 Player::Black => (to + 8i8, Piece::WhitePawn),
             };
-            self[piece] ^= BB::square(from);
-            self[piece] ^= BB::square(to);
-            self[taken_piece] ^= BB::square(taken_sq);
 
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[piece][to];
-            self.hash ^= self.hasher.pieces()[taken_piece][taken_sq];
-            self.squares[to] = Some(piece);
-            self.squares[from] = None;
-            self.squares[taken_sq] = None;
+            self.move_piece(piece, from, to);
+            self.take_piece(taken_piece, taken_sq);
             taken = Some(taken_piece);
         }
 
@@ -341,13 +339,13 @@ impl Board {
 
         self.state.player = self.state.player.flip();
         self.state.castle &= !castle_mask;
-        self.hash ^= self.hasher.castle()[self.state.castle as usize];
+
+        self.chain.move_end(self.state);
 
         let res = UnmakeMove {
             mov: m,
             taken,
             state,
-            hash,
         };
         //self.moves.push(res);
         res
@@ -355,11 +353,9 @@ impl Board {
 
     /// Undo a move
     pub fn unmake_move(&mut self, mov: UnmakeMove) {
-        self.m.pop();
         //debug_assert_eq!(self.moves.pop(), Some(mov));
-        self.hash ^= self.hasher.castle()[self.state.castle as usize];
-        self.hash ^= self.hasher.castle()[mov.state.castle as usize];
-        self.hash ^= self.hasher.black();
+        self.chain.undo_move_start(self.state);
+
         self.state = mov.state;
 
         let from = mov.mov.from();
@@ -368,54 +364,28 @@ impl Board {
         let piece = self.squares[to].unwrap();
 
         if ty == Move::TYPE_NORMAL {
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[piece][to];
-            self[piece] ^= BB::square(from) | BB::square(to);
-            self.squares[to] = None;
-            self.squares[from] = Some(piece);
+            self.move_piece(piece, from, to);
 
             if let Some(taken) = mov.taken {
-                self[taken] |= BB::square(to);
-                self.squares[to] = Some(taken);
-                self.hash ^= self.hasher.pieces()[taken][to];
+                self.untake_piece(taken, to)
             }
         } else if ty == Move::TYPE_CASTLE {
             let king = piece;
             let rook = Piece::player_rook(self.state.player);
-            self[king] ^= BB::square(from) | BB::square(to);
-            self.squares[to] = None;
-            self.squares[from] = Some(king);
-            self.hash ^= self.hasher.pieces()[king][from];
-            self.hash ^= self.hasher.pieces()[king][to];
+            self.move_piece(king, from, to);
 
             match to {
                 Square::C1 => {
-                    self.squares[Square::A1] = Some(rook);
-                    self.squares[Square::D1] = None;
-                    self[rook] ^= BB::A1 | BB::D1;
-                    self.hash ^= self.hasher.pieces()[rook][Square::A1];
-                    self.hash ^= self.hasher.pieces()[rook][Square::D1];
+                    self.move_piece(rook, Square::D1, Square::A1);
                 }
                 Square::G1 => {
-                    self.squares[Square::H1] = Some(rook);
-                    self.squares[Square::F1] = None;
-                    self[rook] ^= BB::H1 | BB::F1;
-                    self.hash ^= self.hasher.pieces()[rook][Square::H1];
-                    self.hash ^= self.hasher.pieces()[rook][Square::F1];
+                    self.move_piece(rook, Square::F1, Square::H1);
                 }
                 Square::C8 => {
-                    self.squares[Square::A8] = Some(rook);
-                    self.squares[Square::D8] = None;
-                    self[rook] ^= BB::A8 | BB::D8;
-                    self.hash ^= self.hasher.pieces()[rook][Square::A8];
-                    self.hash ^= self.hasher.pieces()[rook][Square::D8];
+                    self.move_piece(rook, Square::D8, Square::A8);
                 }
                 Square::G8 => {
-                    self.squares[Square::H8] = Some(rook);
-                    self.squares[Square::F8] = None;
-                    self[rook] ^= BB::H8 | BB::F8;
-                    self.hash ^= self.hasher.pieces()[rook][Square::H8];
-                    self.hash ^= self.hasher.pieces()[rook][Square::F8];
+                    self.move_piece(rook, Square::F8, Square::H8);
                 }
                 _ => unreachable!(),
             }
@@ -429,17 +399,10 @@ impl Board {
                 _ => unreachable!(),
             };
 
-            self[piece] ^= BB::square(from);
-            self[promote] ^= BB::square(to);
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[promote][to];
-            self.squares[to] = None;
-            self.squares[from] = Some(piece);
+            self.unpromote_piece(piece, promote, from, to);
 
             if let Some(taken) = mov.taken {
-                self[taken] |= BB::square(to);
-                self.squares[to] = Some(taken);
-                self.hash ^= self.hasher.pieces()[taken][to];
+                self.untake_piece(taken, to);
             }
         } else if ty == Move::TYPE_EN_PASSANT {
             let m: i8 = match self.state.player {
@@ -448,19 +411,12 @@ impl Board {
             };
             let taken_sq = to + m;
             let taken = mov.taken.unwrap();
-            self[piece] ^= BB::square(from) | BB::square(to);
-            self[taken] |= BB::square(taken_sq);
 
-            self.hash ^= self.hasher.pieces()[piece][from];
-            self.hash ^= self.hasher.pieces()[piece][to];
-            self.hash ^= self.hasher.pieces()[taken][taken_sq];
-            self.squares[to] = None;
-            self.squares[from] = Some(piece);
-            self.squares[taken_sq] = Some(taken);
+            self.move_piece(piece, to, from);
+            self.untake_piece(taken, taken_sq);
         }
 
         self.state = mov.state;
-        debug_assert_eq!(self.hash, mov.hash);
     }
 
     #[inline(always)]
@@ -469,45 +425,29 @@ impl Board {
     }
 }
 
-impl Index<Piece> for Board {
-    type Output = BB;
-    #[inline(always)]
-    fn index(&self, index: Piece) -> &Self::Output {
-        &self.pieces[index]
-    }
-}
-
-impl IndexMut<Piece> for Board {
-    #[inline(always)]
-    fn index_mut(&mut self, index: Piece) -> &mut Self::Output {
-        &mut self.pieces[index]
-    }
-}
-
-impl Debug for Board {
+impl<C: MoveChain + Debug> Debug for Board<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Board")
-            .field("white_king", &self[Piece::WhiteKing])
-            .field("white_queen", &self[Piece::WhiteQueen])
-            .field("white_bishop", &self[Piece::WhiteBishop])
-            .field("white_knight", &self[Piece::WhiteKnight])
-            .field("white_rook", &self[Piece::WhiteRook])
-            .field("white_pawn", &self[Piece::WhitePawn])
-            .field("black_king", &self[Piece::BlackKing])
-            .field("black_queen", &self[Piece::BlackQueen])
-            .field("black_bishop", &self[Piece::BlackBishop])
-            .field("black_knight", &self[Piece::BlackKnight])
-            .field("black_rook", &self[Piece::BlackRook])
-            .field("black_pawn", &self[Piece::BlackPawn])
+            .field("white_king", &self.pieces[Piece::WhiteKing])
+            .field("white_queen", &self.pieces[Piece::WhiteQueen])
+            .field("white_bishop", &self.pieces[Piece::WhiteBishop])
+            .field("white_knight", &self.pieces[Piece::WhiteKnight])
+            .field("white_rook", &self.pieces[Piece::WhiteRook])
+            .field("white_pawn", &self.pieces[Piece::WhitePawn])
+            .field("black_king", &self.pieces[Piece::BlackKing])
+            .field("black_queen", &self.pieces[Piece::BlackQueen])
+            .field("black_bishop", &self.pieces[Piece::BlackBishop])
+            .field("black_knight", &self.pieces[Piece::BlackKnight])
+            .field("black_rook", &self.pieces[Piece::BlackRook])
+            .field("black_pawn", &self.pieces[Piece::BlackPawn])
             .field("state", &self.state)
-            //.field("moves", &self.moves)
-            .field("hash", &self.hash)
             .field("squares", &self.squares)
+            .field("chain", &self.chain)
             .finish()
     }
 }
 
-impl fmt::Display for Board {
+impl<C: MoveChain + Debug> fmt::Display for Board<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for rank in (0..8).rev() {
             write!(f, "{}: ", rank + 1)?;

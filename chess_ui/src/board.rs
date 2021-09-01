@@ -200,7 +200,7 @@ impl RenderBoard {
     }
 
     pub fn make_move(&mut self, mov: Move) {
-        let m = self.board.make_move(mov, &self.hasher);
+        let m = self.board.make_move(mov);
         self.made_moves.push(m);
         self.highlight(mov.from(), mov.to());
         self.possible_moves.clear();
@@ -228,7 +228,7 @@ impl RenderBoard {
             return;
         }
         if let Some(x) = self.made_moves.pop() {
-            self.board.unmake_move(x, &self.hasher);
+            self.board.unmake_move(x);
         }
         /*
         if let Some(x) = self.made_moves.pop() {

@@ -96,7 +96,7 @@ impl Engine for Eval {
     }
 
     fn make_move(&mut self, m: Move) {
-        self.board.make_move(m, &self.hasher);
+        self.board.make_move(m);
     }
 
     fn options(&self) -> RHashMap<String, OptionKind> {
@@ -154,13 +154,13 @@ impl Engine for Eval {
             };
             for (idx, m) in moves.iter().copied().enumerate() {
                 let prev = b.clone();
-                let undo = b.make_move(m, &self.hasher);
+                let undo = b.make_move(m);
                 //assert!(b.is_valid());
                 let move_value = match b.state.player {
                     Player::Black => self.alpha_beta_min(&mut b, value, beta, depth, &fc),
                     Player::White => self.alpha_beta_max(&mut b, alpha, value, depth, &fc),
                 };
-                b.unmake_move(undo, &self.hasher);
+                b.unmake_move(undo);
                 assert_eq!(prev, b);
 
                 match b.state.player {

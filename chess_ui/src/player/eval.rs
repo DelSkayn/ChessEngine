@@ -1,7 +1,7 @@
 use super::Player;
 use crate::{board::RenderBoard, game::PlayedMove};
 use chess_core::{
-    engine::{Info, ShouldRun, Engine},
+    engine::{Engine, Info, ShouldRun},
     uci::ThreadManger,
     Move,
 };
@@ -30,6 +30,11 @@ impl ThreadedEval {
             Info::Depth(x) => print!("{}: ", x),
             Info::BestMove { mov, value } => print!("{} = {}", mov, value),
             Info::Nodes(x) => println!(" ({} nodes)", x),
+            Info::Pv(x) => {
+                print!("PV: ");
+                x.iter().for_each(|x| print!("{} ", x));
+                println!();
+            }
             _ => {}
         }
         ShouldRun::Continue

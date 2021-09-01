@@ -305,6 +305,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "chess_alpha_beta"
+version = "0.1.0"
+dependencies = [
+ "chess_core",
+]
+
+[[package]]
 name = "chess_core"
 version = "0.1.0"
 dependencies = [
@@ -326,6 +333,7 @@ name = "chess_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chess_alpha_beta",
  "chess_core",
  "chess_mcts",
  "euclid",
