@@ -44,7 +44,7 @@ impl AlphaBeta {
 }
 
 impl Engine for AlphaBeta {
-    const NAME: &'static str = "Alpha Beta 1";
+    const NAME: &'static str = "AlphaBeta 2";
 
     fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
         &mut self,
@@ -90,7 +90,7 @@ impl Engine for AlphaBeta {
             "Hash" => {
                 if let OptionValue::Spin(x) = value {
                     if x > 1 && x < 1024 * 4 {
-                        self.table = hash::HashTable::new(x as usize)
+                        self.table = hash::HashTable::new(x as usize * 1024)
                     }
                 }
             }

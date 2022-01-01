@@ -1,6 +1,6 @@
 use chess_core::{
-    gen3::{gen_type, InlineBuffer, MoveGenerator},
-    Board,
+    board2::{Board, EndChain},
+    gen2::{gen_type, InlineBuffer, MoveGenerator},
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -9,7 +9,7 @@ pub fn gen_moves(gen: &MoveGenerator, b: &mut Board, depth: u32) {
         return;
     } else {
         let mut buf = InlineBuffer::<128>::new();
-        gen.gen_moves::<gen_type::All, _>(&b, &mut buf);
+        gen.gen_moves::<gen_type::All, _, _>(&b, &mut buf);
         for m in buf.iter().copied() {
             let undo = b.make_move(m);
             gen_moves(gen, b, depth - 1);
@@ -19,7 +19,7 @@ pub fn gen_moves(gen: &MoveGenerator, b: &mut Board, depth: u32) {
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let mut board = Board::start_position();
+    let mut board = Board::start_position(EndChain);
     let move_gen = MoveGenerator::new();
 
     c.bench_function("generate_moves_ply", |b| {

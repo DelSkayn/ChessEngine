@@ -1,4 +1,4 @@
-use crate::gen2::fill_7;
+use crate::gen::fill_7;
 use crate::{util::BoardArray, Square, BB};
 
 const BISHOP_MAGIC: BoardArray<u64> = BoardArray::new_array([

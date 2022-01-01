@@ -1,4 +1,4 @@
-use super::BB;
+use crate::BB;
 
 macro_rules! fill_7 {
     ($($name:ident $([$exclude:expr])*($($c:tt)*),)*) => {

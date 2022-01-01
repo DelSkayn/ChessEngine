@@ -1,6 +1,6 @@
 //! A interface for an chess engine
 
-use crate::{Board, Move};
+use crate::{board2::Board, Move};
 use std::collections::HashMap;
 
 pub enum Info {
@@ -18,6 +18,7 @@ pub enum Info {
     TransHit(usize),
     // Engine completed a round
     Round,
+    Debug(String),
 }
 
 #[derive(Clone)]
@@ -59,6 +60,9 @@ impl ShouldRun {
 }
 
 pub trait Engine: 'static {
+    const AUTHOR: &'static str = "Mees Delzenne";
+    const NAME: &'static str;
+
     /// Run the search
     fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
         &mut self,

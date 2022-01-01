@@ -1,6 +1,7 @@
 use chess_core::{
-    gen3::{gen_type, InlineBuffer, MoveGenerator, MoveList},
-    Board, Move,
+    board2::{Board, EndChain},
+    gen2::{gen_type, InlineBuffer, MoveGenerator, MoveList},
+    Move,
 };
 use std::{
     env,
@@ -105,9 +106,9 @@ fn main() -> Result<()> {
     args.next();
     let depth: usize = args.next().unwrap().parse().unwrap();
     let mut board = if let Some(x) = args.next() {
-        Board::from_fen(&x).unwrap()
+        Board::from_fen(&x, EndChain).unwrap()
     } else {
-        Board::start_position()
+        Board::start_position(EndChain)
     };
 
     let mut stockfish = StockFish::new()?;
@@ -174,7 +175,7 @@ fn perft(
     count: &mut usize,
 ) -> Vec<(Move, usize)> {
     let mut buffer = InlineBuffer::<128>::new();
-    gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
+    gen.gen_moves::<gen_type::All, _, EndChain>(b, &mut buffer);
     let mut res = Vec::new();
     for i in 0..buffer.len() {
         let m = buffer.get(i);
@@ -194,7 +195,7 @@ fn perft_rec(gen: &MoveGenerator, b: &mut Board, depth: usize, count: &mut usize
         return;
     }
     let mut buffer = InlineBuffer::<128>::new();
-    gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
+    gen.gen_moves::<gen_type::All, _, EndChain>(b, &mut buffer);
     for i in 0..buffer.len() {
         let m = buffer.get(i);
         let m = b.make_move(m);

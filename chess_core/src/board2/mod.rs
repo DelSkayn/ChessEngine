@@ -8,6 +8,7 @@ use std::{
 };
 
 mod chain;
+mod fen;
 pub use chain::{EndChain, HashChain, MoveChain};
 
 /// A move which has been made on the board with
@@ -107,21 +108,21 @@ where
         }
     }
 
+    pub fn copy_position<H: MoveChain>(&mut self, b: &Board<H>) {
+        self.squares = b.squares;
+        self.pieces = b.pieces;
+        self.state = b.state;
+        self.chain.position(&self.pieces, self.state);
+    }
+
     pub fn is_equal(&self, other: &Self) -> bool {
         for p in Piece::WhiteKing.to(Piece::BlackPawn) {
             if self.pieces[p] != other.pieces[p] {
-                println!("{:?}:{:?} != {:?}", p, self.pieces[p], other.pieces[p]);
                 return false;
             }
         }
 
         if self.state != other.state {
-            println!("state not equal");
-            return false;
-        }
-
-        if self.squares != other.squares {
-            println!("squaers not equal");
             return false;
         }
 
@@ -212,6 +213,7 @@ where
     #[inline]
     fn take_piece(&mut self, taken: Piece, square: Square) {
         self.pieces[taken] ^= BB::square(square);
+        self.squares[square] = None;
         self.chain.take_piece(taken, square);
     }
 
@@ -256,18 +258,24 @@ where
             println!("{:?}", self);
             println!("{}", self);
         }*/
-        let piece = self.squares[from].unwrap();
+        let piece = self.squares[from]
+            .ok_or_else(|| format!("invalid lookup: {}\n{:?}", from, self.squares))
+            .unwrap();
         let mut taken = self.squares[to];
-        assert_ne!(taken, Some(Piece::WhiteKing));
-        assert_ne!(taken, Some(Piece::BlackKing));
+        assert_ne!(taken, Some(Piece::WhiteKing), "{}\n{:?}", m, self.squares);
+        assert_ne!(taken, Some(Piece::BlackKing), "{}\n{:?}", m, self.squares);
 
         let mut castle_mask = 0;
 
+        let mut reversible = false;
+
         if ty == Move::TYPE_NORMAL {
-            self.move_piece(piece, from, to);
             if let Some(taken) = taken {
                 self.take_piece(taken, to);
+            } else {
+                reversible = piece != Piece::WhitePawn && piece != Piece::BlackPawn;
             }
+            self.move_piece(piece, from, to);
 
             if m.is_double_move() {
                 self.state.en_passant = from.file();
@@ -304,19 +312,18 @@ where
                 _ => unreachable!(),
             };
 
-            self.promote_piece(piece, promote, from, to);
-
             if let Some(taken) = taken {
                 self.take_piece(taken, to)
             }
+            self.promote_piece(piece, promote, from, to);
         } else if ty == Move::TYPE_EN_PASSANT {
             let (taken_sq, taken_piece) = match self.state.player {
                 Player::White => (to - 8i8, Piece::BlackPawn),
                 Player::Black => (to + 8i8, Piece::WhitePawn),
             };
 
-            self.move_piece(piece, from, to);
             self.take_piece(taken_piece, taken_sq);
+            self.move_piece(piece, from, to);
             taken = Some(taken_piece);
         }
 
@@ -342,6 +349,12 @@ where
 
         self.chain.move_end(self.state);
 
+        if reversible {
+            self.state.move_clock += 1;
+        } else {
+            self.state.move_clock = 0;
+        }
+
         let res = UnmakeMove {
             mov: m,
             taken,
@@ -364,7 +377,7 @@ where
         let piece = self.squares[to].unwrap();
 
         if ty == Move::TYPE_NORMAL {
-            self.move_piece(piece, from, to);
+            self.move_piece(piece, to, from);
 
             if let Some(taken) = mov.taken {
                 self.untake_piece(taken, to)
@@ -372,7 +385,7 @@ where
         } else if ty == Move::TYPE_CASTLE {
             let king = piece;
             let rook = Piece::player_rook(self.state.player);
-            self.move_piece(king, from, to);
+            self.move_piece(king, to, from);
 
             match to {
                 Square::C1 => {

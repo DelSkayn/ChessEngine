@@ -90,7 +90,7 @@ impl Engine for AlphaBeta {
             "Hash" => {
                 if let OptionValue::Spin(x) = value {
                     if x > 1 && x < 1024 * 4 {
-                        self.table = hash::HashTable::new(x as usize)
+                        self.table = hash::HashTable::new(x as usize * 1024)
                     }
                 }
             }

@@ -1,9 +1,9 @@
-use crate::{
-    hash::{TableEntry, TableScore},
-    sort::MoveSorter,
+use crate::sort::MoveSorter;
+
+use super::{
+    hash::{TableScore, TableValue},
     AlphaBeta,
 };
-
 use chess_core::{
     engine::{Info, ShouldRun},
     gen2::{gen_type, InlineBuffer, MoveList},
@@ -55,9 +55,9 @@ impl Line {
 }
 
 impl AlphaBeta {
-    pub const CHECKMATE_SCORE: i32 = 32_000;
-    const INIT_BOUND: i32 = 32_001;
-    const INVALID_SCORE: i32 = 32_002;
+    pub const CHECKMATE_SCORE: i32 = 1_000_000;
+    const INIT_BOUND: i32 = 2_000_000;
+    const INVALID_SCORE: i32 = 2_121_212;
     const MAX_DEPTH: u8 = 99;
 
     pub fn go_search<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
@@ -132,8 +132,6 @@ impl AlphaBeta {
             }
 
             self.depth += 1;
-
-            self.table.increment_generation();
         }
 
         if best_move_total != Move::INVALID {
@@ -157,31 +155,27 @@ impl AlphaBeta {
         }
 
         let mut hash_move = None;
-        let hash_entry = match self.table.get(self.board.chain.hash) {
-            TableEntry::Miss(x) => x,
-            TableEntry::Hit(hit) => {
-                hash_move = Some(hit.r#move());
-                if hit.depth() >= depth {
-                    self.table_hit += 1;
-                    match hit.score() {
-                        TableScore::Exact(x) => return x,
-                        TableScore::Upper(x) => {
-                            upper = upper.max(x);
-                            if upper >= lower {
-                                return x;
-                            }
+        if let Some(hash) = self.table.get(self.board.chain.hash) {
+            if hash.depth >= depth {
+                self.table_hit += 1;
+                hash_move = Some(hash.r#move);
+                match hash.score {
+                    TableScore::Exact(x) => return x,
+                    TableScore::Upper(x) => {
+                        upper = upper.max(x);
+                        if upper >= lower {
+                            return x;
                         }
-                        TableScore::Lower(x) => {
-                            lower = lower.max(x);
-                            if upper >= lower {
-                                return x;
-                            }
+                    }
+                    TableScore::Lower(x) => {
+                        lower = lower.max(x);
+                        if upper >= lower {
+                            return x;
                         }
                     }
                 }
-                hit.into_entry()
             }
-        };
+        }
 
         if depth == 0 {
             let q = self.quiesce(lower, upper, color);
@@ -237,8 +231,12 @@ impl AlphaBeta {
             TableScore::Exact(value)
         };
 
-        self.table
-            .write(hash_entry, self.board.chain.hash, depth, score, best_move);
+        self.table.set(TableValue {
+            hash: self.board.chain.hash,
+            depth,
+            r#move: best_move,
+            score,
+        });
         return value;
     }
 

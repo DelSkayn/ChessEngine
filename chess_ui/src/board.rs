@@ -1,4 +1,8 @@
-use chess_core::{hash::Hasher, Board, Move, Piece, Square, UnmakeMove, BB};
+use chess_core::{
+    board2::{Board, UnmakeMove},
+    hash::Hasher,
+    Move, Piece, Square, BB,
+};
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect, Text},
     input,
@@ -15,7 +19,7 @@ pub struct RenderBoard {
     dragging: Option<Square>,
     mov: Option<(Square, Square)>,
     rect: Rect,
-    made_moves: Vec<UnmakeMove>,
+    pub made_moves: Vec<UnmakeMove>,
 }
 
 impl RenderBoard {
@@ -165,7 +169,7 @@ impl RenderBoard {
 
         for piece in 0..12 {
             let param = piece_to_param(piece, [square_size, square_size], &sprite);
-            for p in (self.board[Piece::from_u8(piece)] & !exclude).iter() {
+            for p in (self.board.pieces[Piece::from_u8(piece)] & !exclude).iter() {
                 let i = p.file();
                 let j = 7 - p.rank();
                 let x = offset_x + square_size * i as f32;

@@ -1,6 +1,7 @@
 use crate::{board::RenderBoard, game::PlayedMove};
 use chess_core::{
-    gen3::{gen_type, MoveGenerator},
+    board2::Board,
+    gen2::{gen_type, MoveGenerator},
     Move, Square,
 };
 use ggez::event::{KeyCode, MouseButton};
@@ -75,7 +76,7 @@ impl Player for MousePlayer {
     fn start_turn(&mut self, board: &RenderBoard) {
         self.possible_moves.clear();
         self.move_gen
-            .gen_moves::<gen_type::All, _>(&board.board, &mut self.possible_moves);
+            .gen_moves::<gen_type::All, _, _>(&board.board, &mut self.possible_moves);
         print!("possible moves:");
         for m in self.possible_moves.iter() {
             print!("{},", m);
@@ -88,7 +89,7 @@ impl Player for MousePlayer {
             board.undo_move();
             self.possible_moves.clear();
             self.move_gen
-                .gen_moves::<gen_type::All, _>(&board.board, &mut self.possible_moves);
+                .gen_moves::<gen_type::All, _, _>(&board.board, &mut self.possible_moves);
         }
     }
 

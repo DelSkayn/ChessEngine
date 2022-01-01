@@ -1,7 +1,7 @@
 //! Utilities for implementing the UCI protocol
 
 use crate::{
-    board::Board,
+    board2::{Board, EndChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
     Move,
 };
@@ -150,6 +150,8 @@ pub struct Uci {
     hash_size: usize,
     manager: ThreadManger,
     options: HashMap<String, OptionKind>,
+    name: &'static str,
+    author: &'static str,
 }
 
 pub fn split_once(s: &str) -> (&str, &str) {
@@ -165,11 +167,13 @@ impl Uci {
     pub fn new<E: Engine + Send>(engine: E) -> Self {
         let options = engine.options();
         Uci {
-            board: Board::start_position(),
+            board: Board::start_position(EndChain),
             debug_mode: false,
             hash_size: 16,
             manager: ThreadManger::new(engine, Self::handle_info),
             options,
+            name: E::NAME,
+            author: E::AUTHOR,
         }
     }
 
@@ -189,6 +193,10 @@ impl Uci {
                 });
                 println!()
             }
+            Info::Debug(x) => {
+                print!("debug ");
+                println!("{}", x);
+            }
         }
         ShouldRun::Continue
     }
@@ -203,8 +211,10 @@ impl Uci {
 
         ensure!(line == "uci", "Protocol did not start with 'uci' command");
 
-        println!("id name rchess 0.1");
-        println!("id author Mees Delzenne");
+        print!("id name ");
+        println!("{}", self.name);
+        print!("id author ");
+        println!("{}", self.author);
 
         println!("uciok");
         loop {
@@ -245,14 +255,14 @@ impl Uci {
                 "ucinewgame" => {}
                 "position" => {
                     let board = if rest == "startpos" {
-                        Board::start_position()
+                        Board::start_position(EndChain)
                     } else {
-                        Board::from_fen(rest)?
+                        Board::from_fen(rest, EndChain)?
                     };
                     self.manager.set_board(board);
                 }
                 "" => {}
-                _ => bail!("invalid command!"),
+                _ => println!("invalid command"),
             }
         }
     }

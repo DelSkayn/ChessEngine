@@ -68,15 +68,18 @@ impl Move {
         Square::new(((self.0 & Self::TO_MASK) >> 6) as u8)
     }
 
+    #[inline]
     pub fn ty(self) -> u16 {
         self.0 & Self::TYPE_MASK
     }
 
+    #[inline]
     pub fn is_double_move(self) -> bool {
         debug_assert!(self.ty() == Self::TYPE_NORMAL);
         self.0 & Self::PROMOTION_MASK != 0
     }
 
+    #[inline]
     pub fn promotion_piece(self) -> u16 {
         debug_assert_eq!(self.ty(), Self::TYPE_PROMOTION);
         self.0 & Self::PROMOTION_MASK

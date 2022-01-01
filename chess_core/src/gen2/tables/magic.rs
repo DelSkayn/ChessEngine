@@ -1,9 +1,5 @@
-use super::fill_7;
+use crate::gen::fill_7;
 use crate::{util::BoardArray, Square, BB};
-use std::sync::atomic::{AtomicBool, Ordering};
-
-const BISHOP_SHIFT: u64 = 64 - 9;
-const ROOK_SHIFT: u64 = 64 - 12;
 
 const BISHOP_MAGIC: BoardArray<u64> = BoardArray::new_array([
     0x007fbfbfbfbfbfff,
@@ -154,121 +150,97 @@ const ROOK_OFFSET: BoardArray<u32> = BoardArray::new_array([
     1394, 40910, 66516, 3897, 3930, 72934, 72662, 56325, 66501, 14826,
 ]);
 
-static mut MAGIC_TABLE: [BB; 88772] = [BB::empty(); 88772];
-static TABLE_INITIALIZED: AtomicBool = AtomicBool::new(false);
+static mut ROOK_MASK: BoardArray<BB> = BoardArray::new_array([BB::EMPTY; 64]);
+static mut BISHOP_MASK: BoardArray<BB> = BoardArray::new_array([BB::EMPTY; 64]);
 
-pub struct Magic {
-    bishop_mask: BoardArray<BB>,
-    rook_mask: BoardArray<BB>,
+static mut MAGIC_TABLE: [BB; 88772] = [BB::empty(); 88772];
+
+pub fn init() {
+    let mut bishop_mask = BoardArray::new(BB::empty());
+    let mut rook_mask = BoardArray::new(BB::empty());
+
+    for i in 0..64 {
+        let s = Square::new(i);
+        bishop_mask[s] = gen_bishop_mask(s);
+        rook_mask[s] = gen_rook_mask(s);
+    }
+    unsafe {
+        ROOK_MASK = rook_mask;
+        BISHOP_MASK = bishop_mask;
+    }
+    unsafe { init_magic() }
 }
 
-impl Magic {
-    pub fn new() -> Self {
-        let mut bishop_mask = BoardArray::new(BB::empty());
-        let mut rook_mask = BoardArray::new(BB::empty());
-
-        for i in 0..64 {
-            let s = Square::new(i);
-            bishop_mask[s] = Self::bishop_mask(s);
-            rook_mask[s] = Self::rook_mask(s);
-        }
-        let res = Magic {
-            bishop_mask,
-            rook_mask,
-        };
-        res.init_table();
-        res
-    }
-
-    pub fn init_table(&self) {
+unsafe fn init_magic() {
+    for s in 0..64 {
+        let s = Square::new(s);
+        let mut occ = BB::empty();
         loop {
-            match TABLE_INITIALIZED.compare_exchange_weak(
-                false,
-                true,
-                Ordering::AcqRel,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => {
-                    self.init_table_write();
-                    return;
-                }
-                Err(true) => {
-                    return;
-                }
-                Err(false) => {}
+            let idx = occ.get().wrapping_mul(BISHOP_MAGIC[s]);
+            let idx = (idx >> 64 - 9) as u32 + BISHOP_OFFSET[s];
+            MAGIC_TABLE[idx as usize] = bishop_sliding_attack(s, occ);
+
+            occ = occ.sub(BISHOP_MASK[s]) & BISHOP_MASK[s];
+            if occ.none() {
+                break;
+            }
+        }
+
+        let mut occ = BB::empty();
+        loop {
+            let idx = occ.get().wrapping_mul(ROOK_MAGIC[s]);
+            let idx = (idx >> 64 - 12) as u32 + ROOK_OFFSET[s];
+            MAGIC_TABLE[idx as usize] = rook_sliding_attack(s, occ);
+
+            occ = occ.sub(ROOK_MASK[s]) & ROOK_MASK[s];
+            if occ.none() {
+                break;
             }
         }
     }
+}
 
-    fn init_table_write(&self) {
-        for s in 0..64 {
-            let s = Square::new(s);
-            let mut occ = BB::empty();
-            loop {
-                let idx: u64 = occ.get().wrapping_mul(BISHOP_MAGIC[s]);
-                let idx = (idx >> (64 - 9)) + BISHOP_OFFSET[s] as u64;
-                unsafe { MAGIC_TABLE[idx as usize] = Self::bishop_sliding_attack(s, occ) };
-
-                occ = occ.sub(self.bishop_mask[s]) & self.bishop_mask[s];
-                if occ.none() {
-                    break;
-                }
-            }
-
-            let mut occ = BB::empty();
-            loop {
-                let idx: u64 = occ.get().wrapping_mul(ROOK_MAGIC[s]);
-                let idx = (idx >> (64 - 12)) + ROOK_OFFSET[s] as u64;
-                unsafe { MAGIC_TABLE[idx as usize] = Self::rook_sliding_attack(s, occ) };
-
-                occ = occ.sub(self.rook_mask[s]) & self.rook_mask[s];
-                if occ.none() {
-                    break;
-                }
-            }
-        }
+pub fn rook_attacks(s: Square, occ: BB) -> BB {
+    unsafe {
+        let idx = (occ & ROOK_MASK[s]).get().wrapping_mul(ROOK_MAGIC[s]);
+        let idx = (idx >> 64 - 12) as u32 + ROOK_OFFSET[s];
+        MAGIC_TABLE[idx as usize]
     }
+}
 
-    pub fn rook_attacks(&self, s: Square, occ: BB) -> BB {
-        let idx = (occ & self.rook_mask[s]).get().wrapping_mul(ROOK_MAGIC[s]);
-        let idx = (idx >> ROOK_SHIFT) + ROOK_OFFSET[s] as u64;
-        unsafe { MAGIC_TABLE[idx as usize] }
+pub fn bishop_attacks(s: Square, occ: BB) -> BB {
+    unsafe {
+        let idx = (occ & BISHOP_MASK[s]).get().wrapping_mul(BISHOP_MAGIC[s]);
+        let idx = (idx >> 64 - 9) as u32 + BISHOP_OFFSET[s];
+        MAGIC_TABLE[idx as usize]
     }
+}
 
-    pub fn bishop_attacks(&self, s: Square, occ: BB) -> BB {
-        let idx = (occ & self.bishop_mask[s])
-            .get()
-            .wrapping_mul(BISHOP_MAGIC[s]);
-        let idx = (idx >> BISHOP_SHIFT) + BISHOP_OFFSET[s] as u64;
-        unsafe { MAGIC_TABLE[idx as usize] }
-    }
+fn rook_sliding_attack(s: Square, occupied: BB) -> BB {
+    let s = BB::square(s);
+    fill_7::n(s, !occupied)
+        | fill_7::w(s, !occupied)
+        | fill_7::s(s, !occupied)
+        | fill_7::e(s, !occupied)
+}
 
-    fn rook_sliding_attack(s: Square, occupied: BB) -> BB {
-        let s = BB::square(s);
-        fill_7::n(s, !occupied)
-            | fill_7::w(s, !occupied)
-            | fill_7::s(s, !occupied)
-            | fill_7::e(s, !occupied)
-    }
+fn bishop_sliding_attack(s: Square, occupied: BB) -> BB {
+    let s = BB::square(s);
+    fill_7::nw(s, !occupied)
+        | fill_7::ne(s, !occupied)
+        | fill_7::sw(s, !occupied)
+        | fill_7::se(s, !occupied)
+}
 
-    fn bishop_sliding_attack(s: Square, occupied: BB) -> BB {
-        let s = BB::square(s);
-        fill_7::nw(s, !occupied)
-            | fill_7::ne(s, !occupied)
-            | fill_7::sw(s, !occupied)
-            | fill_7::se(s, !occupied)
-    }
+fn edges(s: Square) -> BB {
+    (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << s.rank() * 8)
+        | (BB::FILE_A | BB::FILE_H) & !(BB::FILE_A << s.file())
+}
 
-    fn edges(s: Square) -> BB {
-        (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << s.rank() * 8)
-            | (BB::FILE_A | BB::FILE_H) & !(BB::FILE_A << s.file())
-    }
+fn gen_rook_mask(s: Square) -> BB {
+    rook_sliding_attack(s, BB::EMPTY) & !edges(s)
+}
 
-    fn rook_mask(s: Square) -> BB {
-        Self::rook_sliding_attack(s, BB::EMPTY) & !Self::edges(s)
-    }
-
-    fn bishop_mask(s: Square) -> BB {
-        Self::bishop_sliding_attack(s, BB::EMPTY) & !Self::edges(s)
-    }
+fn gen_bishop_mask(s: Square) -> BB {
+    bishop_sliding_attack(s, BB::EMPTY) & !edges(s)
 }

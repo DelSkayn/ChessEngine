@@ -1,13 +1,15 @@
 use crate::{
+    board2::{Board as BaseBoard, EndChain, HashChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    gen3::{gen_type, InlineBuffer, MoveGenerator, MoveList},
-    hash::Hasher,
+    gen2::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     util::{BoardArray, PieceArray},
-    Board, Move, Piece, Player,
+    Move, Piece, Player,
 };
 use std::{collections::HashMap as RHashMap, mem};
 
 mod search;
+
+type Board = BaseBoard<HashChain<EndChain>>;
 
 #[derive(Clone, Copy)]
 pub enum StoredValue {
@@ -80,7 +82,6 @@ impl HashMap {
 
 pub struct Eval {
     gen: MoveGenerator,
-    hasher: Hasher,
     hashmap: HashMap,
     nodes_evaluated: usize,
     table_hits: usize,
@@ -90,9 +91,10 @@ pub struct Eval {
 }
 
 impl Engine for Eval {
-    fn set_board(&mut self, mut board: Board) {
-        board.calc_hash(&self.hasher);
-        self.board = board;
+    const NAME: &'static str = "Eval";
+
+    fn set_board(&mut self, board: BaseBoard) {
+        self.board.copy_position(&board);
     }
 
     fn make_move(&mut self, m: Move) {
@@ -129,13 +131,14 @@ impl Engine for Eval {
 
         let mut moves = InlineBuffer::<128>::new();
         let mut b = self.board.clone();
-        self.gen.gen_moves::<gen_type::All, _>(&mut b, &mut moves);
+        self.gen
+            .gen_moves::<gen_type::All, _, _>(&mut b, &mut moves);
         self.nodes_evaluated = 0;
         self.table_hits = 0;
         self.cut_offs = 0;
         let mut depth = 0;
         let mut best_move = None;
-        let best_move_idx = self.hashmap.lookup(b.hash).map(|x| x.best_move);
+        let best_move_idx = self.hashmap.lookup(b.chain.hash).map(|x| x.best_move);
         self.order_moves(&b, &mut moves, best_move_idx);
 
         let mut best_move_idx = best_move_idx.unwrap_or(0);
@@ -283,7 +286,6 @@ impl Eval {
     */
 
     pub fn new() -> Self {
-        let hasher = Hasher::new();
         let mut value_lookup = PieceArray::new(0);
         value_lookup[Piece::WhiteKing] = 9999999;
         value_lookup[Piece::WhiteQueen] = Self::QUEEN_VALUE;
@@ -297,11 +299,9 @@ impl Eval {
         value_lookup[Piece::BlackBishop] = Self::BISHOP_VALUE;
         value_lookup[Piece::BlackKnight] = Self::KNIGHT_VALUE;
         value_lookup[Piece::BlackPawn] = Self::PAWN_VALUE;
-        let mut board = Board::start_position();
-        board.calc_hash(&hasher);
+        let board = Board::start_position(HashChain::new());
 
         Eval {
-            hasher,
             hashmap: HashMap::new_from_mb(16),
             gen: MoveGenerator::new(),
             nodes_evaluated: 0,

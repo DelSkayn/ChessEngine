@@ -4,6 +4,8 @@ members = [
     "chess_core",
     "chess_mcts",
     "chess_alpha_beta",
+    "chess_alpha_beta_2",
+    "chess_alpha_beta_back",
     "find_magic",
 ]
 

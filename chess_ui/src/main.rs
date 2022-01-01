@@ -2,7 +2,11 @@
 #![allow(unused_imports)]
 
 use chess_alpha_beta::AlphaBeta;
-use chess_core::{eval::Eval, hash::Hasher, Board};
+use chess_core::{
+    board2::{Board, EndChain},
+    eval::Eval,
+    hash::Hasher,
+};
 use chess_mcts::Mcts;
 use ggez::{
     conf::{WindowMode, WindowSetup},
@@ -38,18 +42,18 @@ fn main() {
     let hasher = Hasher::new();
 
     let board = if let Some(x) = args.fen {
-        Board::from_fen(&x).unwrap()
+        Board::from_fen(&x, EndChain).unwrap()
     } else {
-        Board::start_position()
+        Board::start_position(EndChain)
     };
 
-    let white = Box::new(MousePlayer::new());
+    let white = Box::new(ThreadedEval::new(2.0, chess_alpha_beta_2::AlphaBeta::new()));
     let black: Box<dyn Player> = if args.self_play {
         let mut engine = Mcts::new();
         engine.retry_quites = true;
         Box::new(MousePlayer::new())
     } else {
-        Box::new(ThreadedEval::new(2.0, AlphaBeta::new()))
+        Box::new(ThreadedEval::new(2.0, chess_alpha_beta::AlphaBeta::new()))
     };
 
     // Make a Context.

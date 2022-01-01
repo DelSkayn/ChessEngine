@@ -1,7 +1,7 @@
 use crate::{
     engine::ShouldRun,
-    gen3::{InlineBuffer, MoveList},
-    Board, Move, Piece, Player,
+    gen2::{InlineBuffer, MoveList},
+    Move, Piece, Player,
 };
 
 use super::*;
@@ -21,7 +21,7 @@ impl Eval {
         }
 
         let mut stored_best_move = None;
-        if let Some(x) = self.hashmap.lookup(b.hash) {
+        if let Some(x) = self.hashmap.lookup(b.chain.hash) {
             stored_best_move = Some(x.best_move);
             self.table_hits += 1;
             if x.depth >= depth {
@@ -50,7 +50,7 @@ impl Eval {
         }
 
         let mut buffer = InlineBuffer::<128>::new();
-        self.gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
+        self.gen.gen_moves::<gen_type::All, _, _>(b, &mut buffer);
         if buffer.len() == 0 {
             let color = match b.state.player {
                 crate::Player::White => -1,
@@ -80,14 +80,14 @@ impl Eval {
 
         if alpha >= beta {
             self.hashmap.store(Stored {
-                hash: b.hash,
+                hash: b.chain.hash,
                 depth,
                 value: StoredValue::LowerBound(alpha),
                 best_move,
             })
         } else {
             self.hashmap.store(Stored {
-                hash: b.hash,
+                hash: b.chain.hash,
                 depth,
                 value: StoredValue::Exact(alpha),
                 best_move,
@@ -110,7 +110,7 @@ impl Eval {
         }
 
         let mut stored_best_move = None;
-        if let Some(x) = self.hashmap.lookup(b.hash) {
+        if let Some(x) = self.hashmap.lookup(b.chain.hash) {
             stored_best_move = Some(x.best_move);
             self.table_hits += 1;
             if x.depth >= depth {
@@ -139,7 +139,7 @@ impl Eval {
         }
 
         let mut buffer = InlineBuffer::<128>::new();
-        self.gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
+        self.gen.gen_moves::<gen_type::All, _, _>(b, &mut buffer);
         if buffer.len() == 0 {
             return -Self::CHECK_VALUE;
         }
@@ -165,14 +165,14 @@ impl Eval {
 
         if alpha >= beta {
             self.hashmap.store(Stored {
-                hash: b.hash,
+                hash: b.chain.hash,
                 depth,
                 value: StoredValue::UpperBound(beta),
                 best_move,
             })
         } else {
             self.hashmap.store(Stored {
-                hash: b.hash,
+                hash: b.chain.hash,
                 depth,
                 value: StoredValue::Exact(beta),
                 best_move,
@@ -192,7 +192,8 @@ impl Eval {
         }
 
         let mut buffer = InlineBuffer::<128>::new();
-        self.gen.gen_moves::<gen_type::Captures, _>(b, &mut buffer);
+        self.gen
+            .gen_moves::<gen_type::Captures, _, _>(b, &mut buffer);
         self.order_moves(b, &mut buffer, None);
         for m in buffer.iter().copied() {
             if b.on(m.to()).is_none() {
@@ -223,7 +224,8 @@ impl Eval {
         }
 
         let mut buffer = InlineBuffer::<128>::new();
-        self.gen.gen_moves::<gen_type::Captures, _>(b, &mut buffer);
+        self.gen
+            .gen_moves::<gen_type::Captures, _, _>(b, &mut buffer);
         self.order_moves(b, &mut buffer, None);
         for m in buffer.iter().copied() {
             if b.on(m.to()).is_none() {
@@ -254,40 +256,44 @@ impl Eval {
             return color * Self::CHECK_VALUE;
         }
 
-        let mut piece_value = (b[Piece::WhiteQueen].count() as i32
-            - b[Piece::BlackQueen].count() as i32)
+        let mut piece_value = (b.pieces[Piece::WhiteQueen].count() as i32
+            - b.pieces[Piece::BlackQueen].count() as i32)
             * Self::QUEEN_VALUE
-            + (b[Piece::WhiteRook].count() as i32 - b[Piece::BlackRook].count() as i32)
+            + (b.pieces[Piece::WhiteRook].count() as i32
+                - b.pieces[Piece::BlackRook].count() as i32)
                 * Self::ROOK_VALUE
-            + (b[Piece::WhiteBishop].count() as i32 - b[Piece::BlackBishop].count() as i32)
+            + (b.pieces[Piece::WhiteBishop].count() as i32
+                - b.pieces[Piece::BlackBishop].count() as i32)
                 * Self::BISHOP_VALUE
-            + (b[Piece::WhiteKnight].count() as i32 - b[Piece::BlackKnight].count() as i32)
+            + (b.pieces[Piece::WhiteKnight].count() as i32
+                - b.pieces[Piece::BlackKnight].count() as i32)
                 * Self::KNIGHT_VALUE
-            + (b[Piece::WhitePawn].count() as i32 - b[Piece::BlackPawn].count() as i32)
+            + (b.pieces[Piece::WhitePawn].count() as i32
+                - b.pieces[Piece::BlackPawn].count() as i32)
                 * Self::PAWN_VALUE;
 
-        for p in b[Piece::WhiteKing].iter() {
+        for p in b.pieces[Piece::WhiteKing].iter() {
             piece_value += Self::KING_TABLE[p.flip()]
         }
-        for p in b[Piece::WhiteBishop].iter() {
+        for p in b.pieces[Piece::WhiteBishop].iter() {
             piece_value += Self::BISHOP_TABLE[p.flip()]
         }
-        for p in b[Piece::WhiteKnight].iter() {
+        for p in b.pieces[Piece::WhiteKnight].iter() {
             piece_value += Self::KNIGHT_TABLE[p.flip()]
         }
-        for p in b[Piece::WhitePawn].iter() {
+        for p in b.pieces[Piece::WhitePawn].iter() {
             piece_value += Self::PAWN_TABLE[p.flip()]
         }
-        for p in b[Piece::BlackKing].iter() {
+        for p in b.pieces[Piece::BlackKing].iter() {
             piece_value -= Self::KING_TABLE[p]
         }
-        for p in b[Piece::BlackBishop].iter() {
+        for p in b.pieces[Piece::BlackBishop].iter() {
             piece_value -= Self::BISHOP_TABLE[p]
         }
-        for p in b[Piece::BlackKnight].iter() {
+        for p in b.pieces[Piece::BlackKnight].iter() {
             piece_value -= Self::KNIGHT_TABLE[p]
         }
-        for p in b[Piece::BlackPawn].iter() {
+        for p in b.pieces[Piece::BlackPawn].iter() {
             piece_value -= Self::PAWN_TABLE[p]
         }
 

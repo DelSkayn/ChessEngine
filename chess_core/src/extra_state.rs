@@ -7,6 +7,7 @@ pub struct ExtraState {
     pub player: Player,
     pub castle: u8,
     pub en_passant: u8,
+    pub move_clock: u8,
 }
 
 impl ExtraState {
@@ -22,6 +23,7 @@ impl ExtraState {
             player: Player::White,
             castle: 0,
             en_passant: Self::INVALID_ENPASSANT,
+            move_clock: 0,
         }
     }
 

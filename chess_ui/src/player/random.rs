@@ -1,6 +1,9 @@
 use super::Player;
 use crate::{game::PlayedMove, RenderBoard};
-use chess_core::{gen2::MoveGenerator, Move};
+use chess_core::{
+    gen2::{gen_type, MoveGenerator},
+    Move,
+};
 use rand::{thread_rng, Rng};
 use std::time::{Duration, Instant};
 
@@ -24,7 +27,7 @@ impl Player for RandomPlayer {
     fn start_turn(&mut self, board: &RenderBoard) {
         self.possible_moves.clear();
         self.move_gen
-            .gen_moves(&board.board, &mut self.possible_moves);
+            .gen_moves::<gen_type::All, _, _>(&board.board, &mut self.possible_moves);
         self.time = Instant::now()
     }
 

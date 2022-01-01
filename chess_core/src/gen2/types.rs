@@ -1,15 +1,56 @@
-use crate::{Direction, Piece, Player, Square, BB};
+use crate::{Direction, Piece, Square, BB};
 
-pub trait PlayerType {
-    type Opponent: PlayerType;
+pub trait GenType {
+    const QUIET: bool;
+    const CHECKS: bool;
+    const LEGAL: bool;
+}
+
+pub mod gen_type {
+    use super::GenType;
+    pub struct Captures;
+    pub struct All;
+    pub struct AllPseudo;
+    pub struct CapturesChecksPseudo;
+
+    impl GenType for Captures {
+        const QUIET: bool = false;
+        const LEGAL: bool = true;
+        const CHECKS: bool = false;
+    }
+
+    impl GenType for All {
+        const QUIET: bool = true;
+        const LEGAL: bool = true;
+        const CHECKS: bool = false;
+    }
+
+    impl GenType for AllPseudo {
+        const QUIET: bool = true;
+        const LEGAL: bool = false;
+        const CHECKS: bool = false;
+    }
+
+    impl GenType for CapturesChecksPseudo {
+        const QUIET: bool = false;
+        const LEGAL: bool = false;
+        const CHECKS: bool = true;
+    }
+}
+
+pub trait Player {
+    type Opponent: Player;
 
     const ATTACK_LEFT: Direction;
     const ATTACK_RIGHT: Direction;
+    const LEFT: Direction;
+    const RIGHT: Direction;
     const PAWN_MOVE: Direction;
 
     const RANK_7: BB;
     const RANK_8: BB;
     const RANK_3: BB;
+    const RANK_5: BB;
 
     const KING: Piece;
     const QUEEN: Piece;
@@ -25,22 +66,25 @@ pub trait PlayerType {
     const CASTLE_KING_TO: Square;
     const CASTLE_QUEEN_TO: Square;
 
-    const VALUE: Player;
+    const IS_BLACK: bool;
 }
 
 pub struct White;
 pub struct Black;
 
-impl PlayerType for White {
+impl Player for White {
     type Opponent = Black;
 
     const ATTACK_LEFT: Direction = Direction::NW;
     const ATTACK_RIGHT: Direction = Direction::NE;
+    const LEFT: Direction = Direction::W;
+    const RIGHT: Direction = Direction::E;
     const PAWN_MOVE: Direction = Direction::N;
 
     const RANK_7: BB = BB::RANK_7;
     const RANK_8: BB = BB::RANK_8;
     const RANK_3: BB = BB::RANK_3;
+    const RANK_5: BB = BB::RANK_5;
 
     const KING: Piece = Piece::WhiteKing;
     const QUEEN: Piece = Piece::WhiteQueen;
@@ -56,19 +100,22 @@ impl PlayerType for White {
     const CASTLE_KING_TO: Square = Square::G1;
     const CASTLE_QUEEN_TO: Square = Square::C1;
 
-    const VALUE: Player = Player::White;
+    const IS_BLACK: bool = false;
 }
 
-impl PlayerType for Black {
+impl Player for Black {
     type Opponent = White;
 
     const ATTACK_LEFT: Direction = Direction::SE;
     const ATTACK_RIGHT: Direction = Direction::SW;
+    const LEFT: Direction = Direction::E;
+    const RIGHT: Direction = Direction::W;
     const PAWN_MOVE: Direction = Direction::S;
 
     const RANK_7: BB = BB::RANK_2;
     const RANK_8: BB = BB::RANK_1;
     const RANK_3: BB = BB::RANK_6;
+    const RANK_5: BB = BB::RANK_4;
 
     const KING: Piece = Piece::BlackKing;
     const QUEEN: Piece = Piece::BlackQueen;
@@ -83,6 +130,5 @@ impl PlayerType for Black {
     const CASTLE_FROM: Square = Square::E8;
     const CASTLE_KING_TO: Square = Square::G8;
     const CASTLE_QUEEN_TO: Square = Square::C8;
-
-    const VALUE: Player = Player::Black;
+    const IS_BLACK: bool = true;
 }

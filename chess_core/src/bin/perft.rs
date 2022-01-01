@@ -1,5 +1,5 @@
 use chess_core::{
-    gen3::{gen_type, InlineBuffer, MoveGenerator, MoveList},
+    gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     hash::Hasher,
     Board,
 };

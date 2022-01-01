@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ggez = "0.6.0-rc1"
+ggez = "0.7"
 thiserror = "1.0"
 anyhow = "1.0"
 euclid = "0.22"
@@ -16,3 +16,4 @@ structopt = "0.3.21"
 chess_core = {path =  "../chess_core"}
 chess_mcts = { path = "../chess_mcts/" }
 chess_alpha_beta = { path = "../chess_alpha_beta/" }
+chess_alpha_beta_2 = { path = "../chess_alpha_beta_2/" }

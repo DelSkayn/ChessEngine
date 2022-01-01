@@ -3,10 +3,11 @@
 
 mod list;
 use chess_core::{
+    board2::{Board, EndChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    gen3::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
+    gen2::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
     hash::Hasher,
-    Board, Move, Piece, Player, UnmakeMove,
+    Move, Piece, Player, UnmakeMove,
 };
 use list::{InlineVec, List, NodeId};
 use rand::Rng;
@@ -24,7 +25,7 @@ pub struct Node {
 impl Node {
     pub fn new(parent: Option<NodeId>, b: &Board, move_gen: &MoveGenerator) -> Self {
         let mut moves = InlineBuffer::new();
-        let info = move_gen.gen_moves::<gen_type::All, _>(&b, &mut moves);
+        let info = move_gen.gen_moves::<gen_type::All, _, _>(&b, &mut moves);
         Node {
             parent,
             info,
@@ -58,7 +59,7 @@ impl Mcts {
 
     pub fn new() -> Mcts {
         let mut list = List::new();
-        let board = Board::start_position();
+        let board = Board::start_position(EndChain);
         let move_gen = MoveGenerator::new();
         Mcts {
             root: list.insert(Node::new(None, &board, &move_gen)),
@@ -141,7 +142,7 @@ impl Mcts {
 
         // No moves for node, it is either a checkmate or a stalemate
         if node.moves.len() == 0 {
-            if (node.info.attacked & board[Piece::player_king(board.state.player)]).any() {
+            if (node.info.attacked & board.pieces[Piece::player_king(board.state.player)]).any() {
                 return Self::SCORE_WIN * self.playouts as f32;
             } else {
                 return self.playouts as f32 * Self::SCORE_DRAW;
@@ -156,7 +157,7 @@ impl Mcts {
             let mut move_buffer = InlineBuffer::<128>::new();
             let mut info = self
                 .move_gen
-                .gen_moves::<gen_type::AllPseudo, _>(&b, &mut move_buffer);
+                .gen_moves::<gen_type::AllPseudo, _, _>(&b, &mut move_buffer);
 
             'rollout: for i in 0..MAX_ROLLOUT {
                 if self.move_gen.drawn(&b, &info) {
@@ -166,7 +167,8 @@ impl Mcts {
 
                 let mov = loop {
                     if move_buffer.len() == 0 {
-                        if (node.info.attacked & b[Piece::player_king(b.state.player)]).any() {
+                        if (node.info.attacked & b.pieces[Piece::player_king(b.state.player)]).any()
+                        {
                             if b.state.player == board.state.player {
                                 score += Self::SCORE_WIN;
                             }
@@ -193,7 +195,7 @@ impl Mcts {
                 move_buffer.clear();
                 info = self
                     .move_gen
-                    .gen_moves::<gen_type::AllPseudo, _>(&b, &mut move_buffer);
+                    .gen_moves::<gen_type::AllPseudo, _, _>(&b, &mut move_buffer);
 
                 if i == MAX_ROLLOUT - 1 {
                     score += Self::SCORE_DRAW;
@@ -250,6 +252,8 @@ impl Mcts {
 }
 
 impl Engine for Mcts {
+    const NAME: &'static str = "Random play MCTS";
+
     fn set_board(&mut self, board: Board) {
         self.board = board;
     }

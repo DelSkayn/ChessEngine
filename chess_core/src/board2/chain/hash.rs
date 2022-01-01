@@ -1,7 +1,7 @@
 pub use super::{EndChain, MoveChain};
 use crate::{hash::Hasher, util::PieceArray, ExtraState, Piece, Square, BB};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashChain<C: MoveChain = EndChain> {
     pub hash: u64,
     hasher: Hasher,
