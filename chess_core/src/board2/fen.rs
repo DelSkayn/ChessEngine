@@ -142,6 +142,19 @@ impl<C: MoveChain> Board<C> {
             }
         }
 
+        ensure!(iterator.next() == Some('_'), "invalid position");
+        let iterator = iterator.as_str().split_whitespace();
+
+        let half_time = iterator
+            .next()
+            .ok_or_else(|| anyhow!("invalid position"))
+            .and_then(|x| Ok(x.parse::<u8>()?))?;
+
+        let _move_time = iterator
+            .next()
+            .ok_or_else(|| anyhow!("invalid position"))
+            .and_then(|x| Ok(x.parse::<u32>()?))?;
+
         for p in Piece::WhiteKing.to(Piece::BlackPawn) {
             for s in board.pieces[p].iter() {
                 board.squares[s] = Some(p);
@@ -256,7 +269,10 @@ impl<C: MoveChain> Board<C> {
         } else {
             res.push('-');
         }
-
+        res.push(' ');
+        res.push_str(&format!("{}", self.state.move_clock));
+        res.push(' ');
+        res.push_str(&format!("{}", self.state.move_clock));
         res
     }
 }

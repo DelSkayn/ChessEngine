@@ -266,4 +266,20 @@ impl Uci {
             }
         }
     }
+
+    pub fn parse_position(&self, arg: &str){
+        let (pos_id, rem) = match arg.split_once(" "){
+            Some((a,b)) = (a,b),
+            None => if arg.starts_with("startpos"){
+                self.manager.set_board(Board::start_position(EndChain));
+                return
+            }else{
+                println!("invalid command");
+                return;
+            }
+        };
+        if pos_id == "fen"{
+            rem.spl
+        }
+    }
 }
