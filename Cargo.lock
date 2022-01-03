@@ -339,6 +339,7 @@ dependencies = [
 name = "chess_mcts"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chess_core",
  "rand",
 ]

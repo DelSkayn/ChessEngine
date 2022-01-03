@@ -41,11 +41,26 @@ impl Node {
     }
 }
 
+pub struct Options {
+    max_rollout: usize,
+    exploration: f32,
+    playouts: u32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            max_rollout: 10_000,
+            exploration: (2.0f32).sqrt(),
+            playouts: 3,
+        }
+    }
+}
+
 pub struct Mcts {
     root: NodeId,
     list: List<Node>,
-    pub playouts: u32,
-    pub exploration: f32,
+    pub options: Options,
     board: Board,
     move_gen: MoveGenerator,
     iterations: u32,
@@ -62,12 +77,11 @@ impl Mcts {
         let board = Board::start_position(EndChain);
         let move_gen = MoveGenerator::new();
         Mcts {
+            options: Default::default(),
             root: list.insert(Node::new(None, &board, &move_gen)),
             list,
-            playouts: 3,
             board,
             move_gen,
-            exploration: (2.0f32).sqrt(),
             iterations: 0,
             retry_quites: false,
         }
@@ -91,7 +105,7 @@ impl Mcts {
                     let root_simulations = self.list[cur_node].simulations as f32;
 
                     let score = score / simulations
-                        + self.exploration * (root_simulations.ln() / simulations);
+                        + self.options.exploration * (root_simulations.ln() / simulations);
                     if score > best_score {
                         best_score = score;
                         best = Some((c, m));
@@ -123,9 +137,9 @@ impl Mcts {
 
         // Propagate
         loop {
-            self.list[cur_node].simulations += self.playouts;
+            self.list[cur_node].simulations += self.options.playouts;
             self.list[cur_node].score += score;
-            score = self.playouts as f32 * Self::SCORE_WIN - score;
+            score = self.options.playouts as f32 * Self::SCORE_WIN - score;
             if let Some(p) = self.list[cur_node].parent {
                 cur_node = p;
             } else {
@@ -143,13 +157,13 @@ impl Mcts {
         // No moves for node, it is either a checkmate or a stalemate
         if node.moves.len() == 0 {
             if (node.info.attacked & board.pieces[Piece::player_king(board.state.player)]).any() {
-                return Self::SCORE_WIN * self.playouts as f32;
+                return Self::SCORE_WIN * self.options.playouts as f32;
             } else {
-                return self.playouts as f32 * Self::SCORE_DRAW;
+                return self.options.playouts as f32 * Self::SCORE_DRAW;
             }
         }
 
-        for _ in 0..self.playouts {
+        for _ in 0..self.options.playouts {
             let mut b = board.clone();
             let pick = rng.gen::<usize>() % node.moves.len();
             let first_move = node.moves.get(pick);
@@ -263,13 +277,55 @@ impl Engine for Mcts {
     }
 
     fn options(&self) -> HashMap<String, OptionKind> {
-        [].iter().cloned().collect()
+        [
+            (
+                "playouts".to_string(),
+                OptionKind::Spin {
+                    default: 3,
+                    max: Some(20),
+                    min: Some(1),
+                },
+            ),
+            ("exploration".to_string(), OptionKind::String),
+            (
+                "max_rollout".to_string(),
+                OptionKind::Spin {
+                    default: 10_000,
+                    max: Some(i32::MAX),
+                    min: Some(20),
+                },
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect()
     }
-    fn set_option(&mut self, _: String, _: OptionValue) {}
+    fn set_option(&mut self, name: String, value: OptionValue) {
+        match name.as_str() {
+            "playouts" => {
+                if let OptionValue::Spin(x) = value {
+                    self.options.playouts = x as u32;
+                }
+            }
+            "exploration" => {
+                if let OptionValue::String(x) = value {
+                    if let Ok(x) = x.parse() {
+                        self.options.exploration = x;
+                    }
+                }
+            }
+            "max_rollout" => {
+                if let OptionValue::Spin(x) = value {
+                    self.options.max_rollout = x as usize;
+                }
+            }
+            _ => {}
+        }
+    }
 
     fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
         &mut self,
-        mut _f: F,
+        mut f: F,
         fc: Fc,
     ) -> Option<Move> {
         self.iterations = 0;
@@ -287,7 +343,7 @@ impl Engine for Mcts {
             self.iterations += 1;
         }
 
-        println!("Iterations: {}", self.iterations);
+        f(Info::Debug(format!("Iterations: {}", self.iterations)));
 
         let mut most_simulations = 0;
         let mut m = None;
@@ -295,7 +351,12 @@ impl Engine for Mcts {
         for (c, mov) in self.list[self.root].children.iter().copied() {
             let sim = self.list[c].simulations;
             let cur_score = self.list[c].score;
-            println!("{}:{} = {}", mov, sim, cur_score / sim as f32);
+            f(Info::Debug(format!(
+                "{}:{} = {}",
+                mov,
+                sim,
+                cur_score / sim as f32
+            )));
             if sim > most_simulations {
                 most_simulations = sim;
                 score = cur_score / sim as f32;
@@ -303,7 +364,7 @@ impl Engine for Mcts {
             }
         }
 
-        println!("score: {}", score);
+        f(Info::Debug(format!("score: {}", score)));
 
         self.dump_tree();
 
