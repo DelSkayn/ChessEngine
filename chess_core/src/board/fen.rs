@@ -131,7 +131,8 @@ impl<C: MoveChain> Board<C> {
             Some('-') => {}
             Some(c) => {
                 if let Some(r) = iterator.next() {
-                    let idx = Self::postion_to_square(c, r).ok_or(anyhow!("invalid position"))?;
+                    let idx = Self::postion_to_square(c, r)
+                        .ok_or(anyhow!("invalid position: invalid en passant square"))?;
                     board.state.en_passant = idx.file();
                 } else {
                     bail!("missing characters")
@@ -142,7 +143,7 @@ impl<C: MoveChain> Board<C> {
             }
         }
 
-        ensure!(iterator.next() == Some('_'), "invalid position");
+        //ensure!(iterator.next() == Some('-'), "invalid position");
         let mut iterator = iterator.as_str().split_whitespace();
 
         let half_time = iterator

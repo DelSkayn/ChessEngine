@@ -3,10 +3,11 @@
 use crate::{
     board::{Board, EndChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    Move,
+    gen::{gen_type, MoveGenerator},
+    Move, Square,
 };
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{anyhow, bail, ensure, Result};
 
 use std::{
     collections::HashMap,
@@ -253,33 +254,66 @@ impl Uci {
                     }
                 }
                 "ucinewgame" => {}
-                "position" => {
-                    let board = if rest == "startpos" {
-                        Board::start_position(EndChain)
-                    } else {
-                        Board::from_fen(rest, EndChain)?
-                    };
-                    self.manager.set_board(board);
-                }
+                "position" => self.parse_position(rest)?,
+                "quit" => return Ok(()),
                 "" => {}
                 _ => println!("invalid command"),
             }
         }
     }
 
-    pub fn parse_position(&self, arg: &str) {
-        let (pos_id, rem) = match arg.split_once(" ") {
-            Some((a, b)) => (a, b),
+    pub fn parse_position(&self, arg: &str) -> Result<()> {
+        let mut board;
+
+        let rem = match arg.split_once(" ") {
+            Some(("startpos", rem)) => {
+                board = Board::start_position(EndChain);
+                self.manager.set_board(board.clone());
+                rem
+            }
+            Some(("fen", rem)) => match rem.find("moves") {
+                Some(x) => {
+                    board = Board::from_fen(&rem[..x], EndChain)?;
+                    self.manager.set_board(board.clone());
+                    &rem[x..]
+                }
+                None => {
+                    board = Board::from_fen(rem, EndChain)?;
+                    self.manager.set_board(board.clone());
+                    return Ok(());
+                }
+            },
             None => {
                 if arg.starts_with("startpos") {
-                    self.manager.set_board(Board::start_position(EndChain));
-                    return;
+                    board = Board::start_position(EndChain);
+                    self.manager.set_board(board.clone());
+                    return Ok(());
                 } else {
                     println!("invalid command");
-                    return;
+                    return Ok(());
                 }
             }
+            _ => bail!("invalid position command"),
         };
-        if pos_id == "fen" {}
+
+        let mut iterator = rem.split_whitespace();
+        ensure!(iterator.next() == Some("moves"));
+
+        let move_gen = MoveGenerator::new();
+        let mut move_buffer = Vec::new();
+
+        for m in iterator {
+            let from = Square::from_name(&m[0..2]).ok_or_else(|| anyhow!("invalid square"))?;
+            let to = Square::from_name(&m[2..4]).ok_or_else(|| anyhow!("invalid square"))?;
+            move_gen.gen_moves::<gen_type::All, _, _>(&board, &mut move_buffer);
+            let m = move_buffer
+                .iter()
+                .copied()
+                .find(|m| m.to() == to && m.from() == from)
+                .ok_or_else(|| anyhow!("invalid move"))?;
+            board.make_move(m);
+            self.manager.make_move(m);
+        }
+        Ok(())
     }
 }

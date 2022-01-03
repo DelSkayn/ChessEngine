@@ -47,7 +47,6 @@ impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
         let (idx, best_move) =
             self.moves
                 .iter()
-                .copied()
                 .enumerate()
                 .fold((0, Move::INVALID), |mut acc, m| {
                     let score = self.score_move(m.1, board);

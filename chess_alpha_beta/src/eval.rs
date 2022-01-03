@@ -1,5 +1,5 @@
 use super::AlphaBeta;
-use chess_core::{util::BoardArray, Piece, Player};
+use chess_core::{gen::PositionInfo, util::BoardArray, Piece, Player};
 
 impl AlphaBeta {
     pub const PAWN_VALUE: i32 = 100;
@@ -33,26 +33,33 @@ impl AlphaBeta {
         30, 10, 0, 0, 10, 30, 20,
     ]);
 
-    /*
     const KING_END_TABLE: BoardArray<i32> = BoardArray::new_array([
-    -50, -40, -30, -20, -20, -30, -40, -50, -30, -20, -10, 0, 0, -10, -20, -30, -30, -10, 20,
-    30, 30, 20, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 30, 40, 40, 30, -10,
-    -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -30, 0, 0, 0, 0, -30, -30, -50, -30, -30,
-    -30, -30, -30, -30, -50,
+        -50, -40, -30, -20, -20, -30, -40, -50, -30, -20, -10, 0, 0, -10, -20, -30, -30, -10, 20,
+        30, 30, 20, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 30, 40, 40, 30, -10,
+        -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -30, 0, 0, 0, 0, -30, -30, -50, -30, -30,
+        -30, -30, -30, -30, -50,
     ]);
-    */
 
-    pub fn eval_board(&mut self) -> i32 {
+    pub fn eval_board(&mut self, info: &PositionInfo) -> i32 {
         let b = &self.board;
         self.nodes += 1;
 
-        if self.gen.check_mate(b) {
+        if self.gen.check_mate(b, info) {
             let color = match b.state.player {
                 Player::White => -1,
                 Player::Black => 1,
             };
             return color * Self::CHECKMATE_SCORE;
         }
+
+        let (white_occ, black_occ) = if b.state.player == Player::White {
+            (info.my, info.their)
+        } else {
+            (info.their, info.my)
+        };
+
+        let white_pieces = (white_occ & !b.pieces[Piece::WhitePawn]).count() - 1;
+        let black_pieces = (black_occ & !b.pieces[Piece::BlackPawn]).count() - 1;
 
         let mut piece_value = (b.pieces[Piece::WhiteQueen].count() as i32
             - b.pieces[Piece::BlackQueen].count() as i32)
@@ -70,8 +77,12 @@ impl AlphaBeta {
                 - b.pieces[Piece::BlackPawn].count() as i32)
                 * Self::PAWN_VALUE;
 
+        //TODO do based on score instead of pieces
         for p in b.pieces[Piece::WhiteKing].iter() {
-            piece_value += Self::KING_TABLE[p.flip()]
+            let p = p.flip();
+            piece_value += (Self::KING_TABLE[p] * white_pieces as i32
+                + Self::KING_END_TABLE[p] * (7 - white_pieces as i32))
+                / 7;
         }
         for p in b.pieces[Piece::WhiteBishop].iter() {
             piece_value += Self::BISHOP_TABLE[p.flip()]
@@ -82,8 +93,12 @@ impl AlphaBeta {
         for p in b.pieces[Piece::WhitePawn].iter() {
             piece_value += Self::PAWN_TABLE[p.flip()]
         }
+
+        //TODO do based on score instead of pieces
         for p in b.pieces[Piece::BlackKing].iter() {
-            piece_value -= Self::KING_TABLE[p]
+            piece_value -= (Self::KING_TABLE[p] * black_pieces as i32
+                + Self::KING_END_TABLE[p] * (7 - black_pieces as i32))
+                / 7;
         }
         for p in b.pieces[Piece::BlackBishop].iter() {
             piece_value -= Self::BISHOP_TABLE[p]

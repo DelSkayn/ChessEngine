@@ -10,7 +10,7 @@ pub fn gen_moves(gen: &MoveGenerator, b: &mut Board, depth: u32) {
     } else {
         let mut buf = InlineBuffer::<128>::new();
         gen.gen_moves::<gen_type::All, _, _>(&b, &mut buf);
-        for m in buf.iter().copied() {
+        for m in buf.iter() {
             let undo = b.make_move(m);
             gen_moves(gen, b, depth - 1);
             b.unmake_move(undo);

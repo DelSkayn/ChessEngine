@@ -1,5 +1,5 @@
 use super::AlphaBeta;
-use chess_core::{util::BoardArray, Piece, Player};
+use chess_core::{gen::PositionInfo, util::BoardArray, Piece, Player};
 
 impl AlphaBeta {
     pub const PAWN_VALUE: i32 = 100;
@@ -42,11 +42,11 @@ impl AlphaBeta {
     ]);
     */
 
-    pub fn eval_board(&mut self) -> i32 {
+    pub fn eval_board(&mut self, info: &PositionInfo) -> i32 {
         let b = &self.board;
         self.nodes += 1;
 
-        if self.gen.check_mate(b) {
+        if self.gen.check_mate(b, info) {
             let color = match b.state.player {
                 Player::White => -1,
                 Player::Black => 1,

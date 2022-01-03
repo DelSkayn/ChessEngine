@@ -155,7 +155,7 @@ impl Engine for Eval {
                 Player::White => -i32::MAX,
                 Player::Black => i32::MAX,
             };
-            for (idx, m) in moves.iter().copied().enumerate() {
+            for (idx, m) in moves.iter().enumerate() {
                 let prev = b.clone();
                 let undo = b.make_move(m);
                 //assert!(b.is_valid());

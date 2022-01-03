@@ -1,6 +1,6 @@
 use crate::{
     engine::ShouldRun,
-    gen::{InlineBuffer, MoveList},
+    gen::{InlineBuffer, MoveList, PositionInfo},
     Move, Piece, Player,
 };
 
@@ -63,7 +63,7 @@ impl Eval {
 
         let mut best_move = 0u16;
 
-        for (idx, m) in buffer.iter().copied().enumerate() {
+        for (idx, m) in buffer.iter().enumerate() {
             let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.alpha_beta_min(b, alpha, beta, depth - 1, stop);
@@ -148,7 +148,7 @@ impl Eval {
 
         let mut best_move = 0;
 
-        for (idx, m) in buffer.iter().copied().enumerate() {
+        for (idx, m) in buffer.iter().enumerate() {
             let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
             let value = self.alpha_beta_max(b, alpha, beta, depth - 1, stop);
@@ -183,7 +183,8 @@ impl Eval {
     }
 
     fn quiesce_max(&mut self, b: &mut Board, mut alpha: i32, beta: i32) -> i32 {
-        let value = self.eval_board(b);
+        let info = self.gen.gen_info(b);
+        let value = self.eval_board(b, &info);
         if value >= beta {
             return beta;
         }
@@ -195,7 +196,7 @@ impl Eval {
         self.gen
             .gen_moves::<gen_type::Captures, _, _>(b, &mut buffer);
         self.order_moves(b, &mut buffer, None);
-        for m in buffer.iter().copied() {
+        for m in buffer.iter() {
             if b.on(m.to()).is_none() {
                 continue;
             }
@@ -215,7 +216,8 @@ impl Eval {
     }
 
     fn quiesce_min(&mut self, b: &mut Board, alpha: i32, mut beta: i32) -> i32 {
-        let value = self.eval_board(b);
+        let info = self.gen.gen_info(b);
+        let value = self.eval_board(b, &info);
         if value <= alpha {
             return alpha;
         }
@@ -227,7 +229,7 @@ impl Eval {
         self.gen
             .gen_moves::<gen_type::Captures, _, _>(b, &mut buffer);
         self.order_moves(b, &mut buffer, None);
-        for m in buffer.iter().copied() {
+        for m in buffer.iter() {
             if b.on(m.to()).is_none() {
                 continue;
             }
@@ -245,10 +247,10 @@ impl Eval {
         beta
     }
 
-    pub fn eval_board(&mut self, b: &Board) -> i32 {
+    pub fn eval_board(&mut self, b: &Board, info: &PositionInfo) -> i32 {
         self.nodes_evaluated += 1;
 
-        if self.gen.check_mate(b) {
+        if self.gen.check_mate(b, info) {
             let color = match b.state.player {
                 Player::White => -1,
                 Player::Black => 1,

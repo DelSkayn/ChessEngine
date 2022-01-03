@@ -13,14 +13,15 @@ use tables::Tables;
 
 use std::{mem::MaybeUninit, ptr};
 
-pub struct InlineBuffer<const SIZE: usize> {
-    moves: [MaybeUninit<Move>; SIZE],
+#[derive(Copy)]
+pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
+    moves: [MaybeUninit<T>; SIZE],
     len: u16,
 }
 
-impl<const SIZE: usize> Clone for InlineBuffer<SIZE> {
+impl<const SIZE: usize, T: Copy> Clone for InlineBuffer<SIZE, T> {
     fn clone(&self) -> Self {
-        let mut res = InlineBuffer::<SIZE>::new();
+        let mut res = InlineBuffer::<SIZE, T>::new();
         unsafe {
             ptr::copy_nonoverlapping(
                 self.moves.as_ptr(),
@@ -33,7 +34,8 @@ impl<const SIZE: usize> Clone for InlineBuffer<SIZE> {
     }
 }
 
-impl<const SIZE: usize> InlineBuffer<SIZE> {
+impl<const SIZE: usize, T: Copy> InlineBuffer<SIZE, T> {
+    #[inline]
     pub fn new() -> Self {
         InlineBuffer {
             moves: [MaybeUninit::uninit(); SIZE],
@@ -41,7 +43,8 @@ impl<const SIZE: usize> InlineBuffer<SIZE> {
         }
     }
 
-    pub fn iter(&self) -> InlineIter<SIZE> {
+    #[inline]
+    pub fn iter(&self) -> InlineIter<SIZE, T> {
         InlineIter {
             len: self.len,
             cur: 0,
@@ -49,6 +52,7 @@ impl<const SIZE: usize> InlineBuffer<SIZE> {
         }
     }
 
+    #[inline]
     pub fn swap_remove(&mut self, idx: usize) {
         assert!(
             idx < self.len as usize,
@@ -59,22 +63,32 @@ impl<const SIZE: usize> InlineBuffer<SIZE> {
         self.moves.swap(idx, self.len as usize - 1);
         self.len -= 1;
     }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len > 0 {
+            self.len -= 1;
+            Some(unsafe { self.moves[self.len as usize].assume_init() })
+        } else {
+            None
+        }
+    }
 }
 
-pub struct InlineIter<'a, const SIZE: usize> {
+pub struct InlineIter<'a, const SIZE: usize, T: Copy = Move> {
     len: u16,
     cur: u16,
-    v: &'a [MaybeUninit<Move>; SIZE],
+    v: &'a [MaybeUninit<T>; SIZE],
 }
 
-impl<'a, const SIZE: usize> Iterator for InlineIter<'a, SIZE> {
-    type Item = &'a Move;
+impl<'a, const SIZE: usize, T: Copy> Iterator for InlineIter<'a, SIZE, T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == self.cur {
             return None;
         }
-        let res = unsafe { &*self.v.get_unchecked(self.cur as usize).as_ptr() };
+        let res = unsafe { *self.v.get_unchecked(self.cur as usize).as_ptr() };
         self.cur += 1;
         Some(res)
     }
@@ -251,6 +265,7 @@ impl MoveGenerator {
         }
     }
 
+    #[inline]
     pub fn gen_moves<T: GenType, M: MoveList, C: MoveChain>(
         &self,
         b: &Board<C>,
@@ -262,13 +277,36 @@ impl MoveGenerator {
         }
     }
 
-    pub fn check_mate<M: MoveChain>(&self, b: &Board<M>) -> bool {
+    #[inline]
+    pub fn gen_moves_info<T: GenType, M: MoveList, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        info: &PositionInfo,
+        list: &mut M,
+    ) {
         match b.state.player {
-            crate::Player::White => self.check_mate_player::<White, M>(b),
-            crate::Player::Black => self.check_mate_player::<Black, M>(b),
+            crate::Player::White => self.gen_moves_player_info::<White, T, M, C>(b, info, list),
+            crate::Player::Black => self.gen_moves_player_info::<Black, T, M, C>(b, info, list),
         }
     }
 
+    #[inline]
+    pub fn gen_info<C: MoveChain>(&self, board: &Board<C>) -> PositionInfo {
+        match board.state.player {
+            crate::Player::White => PositionInfo::about::<White, C>(self.tables, board),
+            crate::Player::Black => PositionInfo::about::<Black, C>(self.tables, board),
+        }
+    }
+
+    #[inline]
+    pub fn check_mate<M: MoveChain>(&self, b: &Board<M>, info: &PositionInfo) -> bool {
+        match b.state.player {
+            crate::Player::White => self.check_mate_player::<White, M>(b, info),
+            crate::Player::Black => self.check_mate_player::<Black, M>(b, info),
+        }
+    }
+
+    #[inline]
     pub fn checked_king<M: MoveChain>(&self, b: &Board<M>, info: &PositionInfo) -> bool {
         match b.state.player {
             crate::Player::White => self.checked_king_player::<White, M>(b, info),
@@ -335,8 +373,11 @@ impl MoveGenerator {
         attackers.count() > 0
     }
 
-    pub fn check_mate_player<P: Player, C: MoveChain>(&self, b: &Board<C>) -> bool {
-        let info = PositionInfo::about::<P, C>(self.tables, b);
+    pub fn check_mate_player<P: Player, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        info: &PositionInfo,
+    ) -> bool {
         let king_sq = b.pieces[P::KING].first_piece();
         let attackers = self.tables.bishop_attacks(king_sq, info.occupied)
             & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP])
@@ -394,7 +435,17 @@ impl MoveGenerator {
         list: &mut M,
     ) -> PositionInfo {
         let info = PositionInfo::about::<P, _>(self.tables, b);
+        self.gen_moves_player_info::<P, T, M, C>(b, &info, list);
+        info
+    }
 
+    #[inline]
+    pub fn gen_moves_player_info<P: Player, T: GenType, M: MoveList, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        info: &PositionInfo,
+        list: &mut M,
+    ) {
         let target = if T::QUIET { !info.my } else { info.their };
 
         if (info.attacked & b.pieces[P::KING]).any() {
@@ -414,8 +465,6 @@ impl MoveGenerator {
             }
             list.truncate(cur);
         }
-
-        info
     }
 
     pub fn gen_evasion<P: Player, T: GenType, M: MoveList, C: MoveChain>(

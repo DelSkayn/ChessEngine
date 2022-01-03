@@ -241,7 +241,8 @@ impl AlphaBeta {
     }
 
     fn quiesce(&mut self, lower: i32, mut upper: i32, color: i32) -> i32 {
-        let value = color * self.eval_board();
+        let info = self.gen.gen_info(&self.board);
+        let value = color * self.eval_board(&info);
         if value >= lower {
             return lower;
         }
@@ -249,9 +250,9 @@ impl AlphaBeta {
 
         let mut buffer = InlineBuffer::<128>::new();
         self.gen
-            .gen_moves::<gen_type::Captures, _, _>(&self.board, &mut buffer);
+            .gen_moves_info::<gen_type::Captures, _, _>(&self.board, &info, &mut buffer);
 
-        for m in buffer.iter().copied() {
+        for m in buffer.iter() {
             let undo = self.board.make_move(m);
             let value = -self.quiesce(-upper, -lower, -color);
             self.board.unmake_move(undo);

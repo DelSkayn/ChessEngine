@@ -58,7 +58,6 @@ impl Engine for AlphaBeta {
 
     fn make_move(&mut self, m: Move) {
         self.board.make_move(m);
-        println!("HASH: {:x}", self.board.chain.hash);
     }
 
     fn options(&self) -> HashMap<String, OptionKind> {
@@ -109,6 +108,5 @@ impl Engine for AlphaBeta {
 
     fn set_board(&mut self, board: BaseBoard) {
         self.board.copy_position(&board);
-        println!("SET_POSITION");
     }
 }
