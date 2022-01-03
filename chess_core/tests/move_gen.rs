@@ -1,11 +1,11 @@
-use chess_core::board2::EndChain;
+use chess_core::board::EndChain;
 use rand::Rng;
 
 #[test]
 fn random_move_test() {
     use chess_core::{
-        board2::Board,
-        gen2::{gen_type, InlineBuffer, MoveGenerator, MoveList},
+        board::Board,
+        gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     };
     let move_gen = MoveGenerator::new();
 

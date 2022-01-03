@@ -1,6 +1,6 @@
 use chess_core::{
-    board2::{Board, EndChain},
-    gen2::{gen_type, MoveGenerator},
+    board::{Board, EndChain},
+    gen::{gen_type, MoveGenerator},
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 

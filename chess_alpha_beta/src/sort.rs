@@ -1,6 +1,6 @@
 use super::{AlphaBeta, Board};
 use chess_core::{
-    gen2::{InlineBuffer, MoveList},
+    gen::{InlineBuffer, MoveList},
     Move,
 };
 

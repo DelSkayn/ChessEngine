@@ -1,5 +1,5 @@
 use chess_core::{
-    board2::{Board, UnmakeMove},
+    board::{Board, UnmakeMove},
     hash::Hasher,
     Move, Piece, Square, BB,
 };

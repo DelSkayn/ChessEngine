@@ -6,7 +6,7 @@ use super::{
 };
 use chess_core::{
     engine::{Info, ShouldRun},
-    gen2::{gen_type, InlineBuffer, MoveList},
+    gen::{gen_type, InlineBuffer, MoveList},
     Move, Player,
 };
 use std::{mem::MaybeUninit, ptr};

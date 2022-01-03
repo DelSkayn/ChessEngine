@@ -1,7 +1,7 @@
 use super::Player;
 use crate::{game::PlayedMove, RenderBoard};
 use chess_core::{
-    gen2::{gen_type, MoveGenerator},
+    gen::{gen_type, MoveGenerator},
     Move,
 };
 use rand::{thread_rng, Rng};

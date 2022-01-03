@@ -1,10 +1,11 @@
-use crate::{Board, ExtraState, Piece, Player, Square};
+use super::{Board, MoveChain};
+use crate::{ExtraState, Piece, Player, Square};
 use anyhow::{anyhow, bail, ensure, Result};
 
-impl Board {
+impl<C: MoveChain> Board<C> {
     /// Create a board position from a fen string.
     /// Board's hash value has not been initialized
-    pub fn from_fen(fen: &str) -> Result<Self> {
+    pub fn from_fen(fen: &str, mut chain: C) -> Result<Self> {
         let mut board = Board::empty();
 
         let mut column = 0;
@@ -31,14 +32,14 @@ impl Board {
                 }
                 'K' => {
                     ensure!(
-                        board[Piece::WhiteKing].none(),
+                        board.pieces[Piece::WhiteKing].none(),
                         "notation had multiple white kings!"
                     );
                     Piece::WhiteKing
                 }
                 'k' => {
                     ensure!(
-                        board[Piece::BlackKing].none(),
+                        board.pieces[Piece::BlackKing].none(),
                         "notation had multiple white kings!"
                     );
                     Piece::BlackKing
@@ -61,7 +62,7 @@ impl Board {
                 column <= 7,
                 "notation tried to place piece outside the board"
             );
-            board[bitmap] |= 1 << (7 - row) * 8 + column;
+            board.pieces[bitmap] |= 1 << (7 - row) * 8 + column;
             column += 1;
         }
 
@@ -141,13 +142,35 @@ impl Board {
             }
         }
 
+        ensure!(iterator.next() == Some('_'), "invalid position");
+        let mut iterator = iterator.as_str().split_whitespace();
+
+        let half_time = iterator
+            .next()
+            .ok_or_else(|| anyhow!("invalid position"))
+            .and_then(|x| Ok(x.parse::<u8>()?))?;
+
+        board.state.move_clock = half_time;
+
+        let _move_time = iterator
+            .next()
+            .ok_or_else(|| anyhow!("invalid position"))
+            .and_then(|x| Ok(x.parse::<u32>()?))?;
+
         for p in Piece::WhiteKing.to(Piece::BlackPawn) {
-            for s in board[p].iter() {
+            for s in board.pieces[p].iter() {
                 board.squares[s] = Some(p);
             }
         }
 
-        Ok(board)
+        chain.position(&board.pieces, board.state);
+
+        Ok(Board {
+            pieces: board.pieces,
+            state: board.state,
+            squares: board.squares,
+            chain,
+        })
     }
 
     fn postion_to_square(column: char, row: char) -> Option<Square> {
@@ -248,7 +271,10 @@ impl Board {
         } else {
             res.push('-');
         }
-
+        res.push(' ');
+        res.push_str(&format!("{}", self.state.move_clock));
+        res.push(' ');
+        res.push_str(&format!("{}", self.state.move_clock));
         res
     }
 }

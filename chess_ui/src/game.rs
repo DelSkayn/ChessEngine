@@ -1,4 +1,4 @@
-use chess_core::{board2::Board, hash::Hasher, Player as PlayerColor};
+use chess_core::{board::Board, hash::Hasher, Player as PlayerColor};
 use ggez::{
     audio::{SoundSource, Source},
     event::{EventHandler, KeyCode, KeyMods, MouseButton},

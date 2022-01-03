@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use chess_core::{
-    board2::{Board as BaseBoard, EndChain, HashChain},
+    board::{Board as BaseBoard, EndChain, HashChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    gen2::MoveGenerator,
+    gen::MoveGenerator,
     Move,
 };
 

@@ -1,6 +1,6 @@
 use crate::{
     engine::ShouldRun,
-    gen2::{InlineBuffer, MoveList},
+    gen::{InlineBuffer, MoveList},
     Move, Piece, Player,
 };
 

@@ -1,7 +1,7 @@
 use crate::{board::RenderBoard, game::PlayedMove};
 use chess_core::{
-    board2::Board,
-    gen2::{gen_type, MoveGenerator},
+    board::Board,
+    gen::{gen_type, MoveGenerator},
     Move, Square,
 };
 use ggez::event::{KeyCode, MouseButton};

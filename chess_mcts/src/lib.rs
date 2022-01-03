@@ -3,9 +3,9 @@
 
 mod list;
 use chess_core::{
-    board2::{Board, EndChain},
+    board::{Board, EndChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    gen2::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
+    gen::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
     hash::Hasher,
     Move, Piece, Player, UnmakeMove,
 };

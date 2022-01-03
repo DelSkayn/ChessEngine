@@ -1,4 +1,7 @@
-use crate::{Board, ExtraState, Move, Piece, Square, BB};
+use crate::{
+    board::{Board, MoveChain},
+    ExtraState, Move, Piece, Square, BB,
+};
 
 pub mod fill_7;
 
@@ -8,11 +11,26 @@ pub use types::*;
 mod tables;
 use tables::Tables;
 
-use std::mem::MaybeUninit;
+use std::{mem::MaybeUninit, ptr};
 
 pub struct InlineBuffer<const SIZE: usize> {
     moves: [MaybeUninit<Move>; SIZE],
     len: u16,
+}
+
+impl<const SIZE: usize> Clone for InlineBuffer<SIZE> {
+    fn clone(&self) -> Self {
+        let mut res = InlineBuffer::<SIZE>::new();
+        unsafe {
+            ptr::copy_nonoverlapping(
+                self.moves.as_ptr(),
+                res.moves.as_mut_ptr(),
+                self.len as usize,
+            )
+        };
+        res.len = self.len;
+        res
+    }
 }
 
 impl<const SIZE: usize> InlineBuffer<SIZE> {
@@ -32,7 +50,12 @@ impl<const SIZE: usize> InlineBuffer<SIZE> {
     }
 
     pub fn swap_remove(&mut self, idx: usize) {
-        assert!(idx < self.len as usize);
+        assert!(
+            idx < self.len as usize,
+            "got idx: {} while len is {}",
+            idx,
+            self.len
+        );
         self.moves.swap(idx, self.len as usize - 1);
         self.len -= 1;
     }
@@ -147,39 +170,44 @@ pub struct PositionInfo {
 }
 
 impl PositionInfo {
-    pub fn about<P: Player>(table: Tables, b: &Board) -> Self {
-        let their_rooks = b[P::Opponent::QUEEN] | b[P::Opponent::ROOK];
-        let their_bishops = b[P::Opponent::QUEEN] | b[P::Opponent::BISHOP];
-        let king_sq = b[P::KING].first_piece();
+    pub fn about<P: Player, M: MoveChain>(table: Tables, b: &Board<M>) -> Self {
+        let their_rooks = b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK];
+        let their_bishops = b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP];
+        let king_sq = b.pieces[P::KING].first_piece();
 
-        let my = b[P::KING] | b[P::QUEEN] | b[P::ROOK] | b[P::BISHOP] | b[P::KNIGHT] | b[P::PAWN];
+        let my = b.pieces[P::KING]
+            | b.pieces[P::QUEEN]
+            | b.pieces[P::ROOK]
+            | b.pieces[P::BISHOP]
+            | b.pieces[P::KNIGHT]
+            | b.pieces[P::PAWN];
 
-        let their = b[P::Opponent::KING]
-            | b[P::Opponent::BISHOP]
-            | b[P::Opponent::KNIGHT]
-            | b[P::Opponent::PAWN]
+        let their = b.pieces[P::Opponent::KING]
+            | b.pieces[P::Opponent::BISHOP]
+            | b.pieces[P::Opponent::KNIGHT]
+            | b.pieces[P::Opponent::PAWN]
             | their_rooks;
 
         let occupied = my | their;
 
-        let mut attacked = table.king_attacks(b[P::Opponent::KING].first_piece());
+        let mut attacked = table.king_attacks(b.pieces[P::Opponent::KING].first_piece());
 
-        for k in b[P::Opponent::KNIGHT].iter() {
+        for k in b.pieces[P::Opponent::KNIGHT].iter() {
             attacked |= table.knight_attacks(k);
         }
 
-        let bishops = b[P::Opponent::BISHOP] | b[P::Opponent::QUEEN];
+        let bishops = b.pieces[P::Opponent::BISHOP] | b.pieces[P::Opponent::QUEEN];
         for b in bishops.iter() {
             attacked |= table.bishop_attacks(b, occupied);
         }
 
-        let rooks = b[P::Opponent::ROOK] | b[P::Opponent::QUEEN];
+        let rooks = b.pieces[P::Opponent::ROOK] | b.pieces[P::Opponent::QUEEN];
         for b in rooks.iter() {
             attacked |= table.rook_attacks(b, occupied);
         }
 
-        attacked |= b[P::Opponent::PAWN].shift(P::Opponent::ATTACK_LEFT);
-        attacked |= b[P::Opponent::PAWN].shift(P::Opponent::ATTACK_RIGHT);
+        attacked |= b.pieces[P::Opponent::PAWN].shift(P::Opponent::ATTACK_LEFT);
+        attacked |= b.pieces[P::Opponent::PAWN].shift(P::Opponent::ATTACK_RIGHT);
 
         let mut pinners = Self::xray_rook_attacks(table, king_sq, occupied) & their_rooks;
         pinners |= Self::xray_bishop_attacks(table, king_sq, occupied) & their_bishops;
@@ -223,21 +251,35 @@ impl MoveGenerator {
         }
     }
 
-    pub fn gen_moves<T: GenType, M: MoveList>(&self, b: &Board, list: &mut M) -> PositionInfo {
+    pub fn gen_moves<T: GenType, M: MoveList, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        list: &mut M,
+    ) -> PositionInfo {
         match b.state.player {
-            crate::Player::White => self.gen_moves_player::<White, T, M>(b, list),
-            crate::Player::Black => self.gen_moves_player::<Black, T, M>(b, list),
+            crate::Player::White => self.gen_moves_player::<White, T, M, C>(b, list),
+            crate::Player::Black => self.gen_moves_player::<Black, T, M, C>(b, list),
         }
     }
 
-    pub fn check_mate(&self, b: &Board) -> bool {
+    pub fn check_mate<M: MoveChain>(&self, b: &Board<M>) -> bool {
         match b.state.player {
-            crate::Player::White => self.check_mate_player::<White>(b),
-            crate::Player::Black => self.check_mate_player::<Black>(b),
+            crate::Player::White => self.check_mate_player::<White, M>(b),
+            crate::Player::Black => self.check_mate_player::<Black, M>(b),
         }
     }
 
-    pub fn drawn(&self, b: &Board, info: &PositionInfo) -> bool {
+    pub fn checked_king<M: MoveChain>(&self, b: &Board<M>, info: &PositionInfo) -> bool {
+        match b.state.player {
+            crate::Player::White => self.checked_king_player::<White, M>(b, info),
+            crate::Player::Black => self.checked_king_player::<Black, M>(b, info),
+        }
+    }
+
+    pub fn drawn<M: MoveChain>(&self, b: &Board<M>, info: &PositionInfo) -> bool {
+        if b.state.move_clock == 50 {
+            return true;
+        }
         let piece_count = info.occupied.count();
         if piece_count > 5 {
             return false;
@@ -245,7 +287,10 @@ impl MoveGenerator {
         if piece_count < 3 {
             return true;
         }
-        if (b[Piece::WhiteRook] | b[Piece::WhitePawn] | b[Piece::BlackRook] | b[Piece::BlackPawn])
+        if (b.pieces[Piece::WhiteRook]
+            | b.pieces[Piece::WhitePawn]
+            | b.pieces[Piece::BlackRook]
+            | b.pieces[Piece::BlackPawn])
             .any()
         {
             return false;
@@ -254,19 +299,19 @@ impl MoveGenerator {
             return true;
         }
         if piece_count == 4 {
-            return (b[Piece::WhiteBishop] | b[Piece::WhiteKnight]).count() == 1;
+            return (b.pieces[Piece::WhiteBishop] | b.pieces[Piece::WhiteKnight]).count() == 1;
         }
 
-        if b[Piece::WhiteBishop].count() == 2 {
-            if (b[Piece::WhiteBishop] & BB::WHITE_SQUARES).count() == 1 {
-                return b[Piece::BlackBishop].any();
+        if b.pieces[Piece::WhiteBishop].count() == 2 {
+            if (b.pieces[Piece::WhiteBishop] & BB::WHITE_SQUARES).count() == 1 {
+                return b.pieces[Piece::BlackBishop].any();
             } else {
                 return true;
             }
         }
-        if b[Piece::BlackBishop].count() == 2 {
-            if (b[Piece::BlackBishop] & BB::WHITE_SQUARES).count() == 1 {
-                return b[Piece::WhiteBishop].any();
+        if b.pieces[Piece::BlackBishop].count() == 2 {
+            if (b.pieces[Piece::BlackBishop] & BB::WHITE_SQUARES).count() == 1 {
+                return b.pieces[Piece::WhiteBishop].any();
             } else {
                 return true;
             }
@@ -274,16 +319,32 @@ impl MoveGenerator {
         return true;
     }
 
-    pub fn check_mate_player<P: Player>(&self, b: &Board) -> bool {
-        let info = PositionInfo::about::<P>(self.tables, b);
-        let king_sq = b[P::KING].first_piece();
+    pub fn checked_king_player<P: Player, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        info: &PositionInfo,
+    ) -> bool {
+        let king_sq = b.pieces[P::KING].first_piece();
         let attackers = self.tables.bishop_attacks(king_sq, info.occupied)
-            & (b[P::Opponent::QUEEN] | b[P::Opponent::BISHOP])
+            & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP])
             | self.tables.rook_attacks(king_sq, info.occupied)
-                & (b[P::Opponent::QUEEN] | b[P::Opponent::ROOK])
-            | self.tables.knight_attacks(king_sq) & b[P::Opponent::KNIGHT]
-            | b[P::KING].shift(P::ATTACK_LEFT) & b[P::Opponent::PAWN]
-            | b[P::KING].shift(P::ATTACK_RIGHT) & b[P::Opponent::PAWN];
+                & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK])
+            | self.tables.knight_attacks(king_sq) & b.pieces[P::Opponent::KNIGHT]
+            | b.pieces[P::KING].shift(P::ATTACK_LEFT) & b.pieces[P::Opponent::PAWN]
+            | b.pieces[P::KING].shift(P::ATTACK_RIGHT) & b.pieces[P::Opponent::PAWN];
+        attackers.count() > 0
+    }
+
+    pub fn check_mate_player<P: Player, C: MoveChain>(&self, b: &Board<C>) -> bool {
+        let info = PositionInfo::about::<P, C>(self.tables, b);
+        let king_sq = b.pieces[P::KING].first_piece();
+        let attackers = self.tables.bishop_attacks(king_sq, info.occupied)
+            & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP])
+            | self.tables.rook_attacks(king_sq, info.occupied)
+                & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK])
+            | self.tables.knight_attacks(king_sq) & b.pieces[P::Opponent::KNIGHT]
+            | b.pieces[P::KING].shift(P::ATTACK_LEFT) & b.pieces[P::Opponent::PAWN]
+            | b.pieces[P::KING].shift(P::ATTACK_RIGHT) & b.pieces[P::Opponent::PAWN];
 
         let attackers_count = attackers.count();
 
@@ -292,7 +353,7 @@ impl MoveGenerator {
         }
 
         let mut king_moves = self.tables.king_attacks(king_sq) & !(info.my | info.attacked);
-        for p in attackers & !(b[P::Opponent::KNIGHT] | b[P::Opponent::PAWN]) {
+        for p in attackers & !(b.pieces[P::Opponent::KNIGHT] | b.pieces[P::Opponent::PAWN]) {
             king_moves &= !(self.tables.line(king_sq, p) & !BB::square(p));
         }
 
@@ -305,48 +366,48 @@ impl MoveGenerator {
         }
 
         let mut blockers = attackers;
-        if (attackers & b[P::Opponent::KNIGHT]).none() {
+        if (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
             blockers |= self.tables.between(attackers.first_piece(), king_sq);
         }
 
         let mut list = InlineBuffer::<128>::new();
-        self.gen_moves_sliders::<P, gen_type::All, _>(b, &info, &mut list, blockers);
+        self.gen_moves_sliders::<P, gen_type::All, _, _>(b, &info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
         list.clear();
-        self.gen_moves_knight::<P, _>(b, &mut list, blockers);
+        self.gen_moves_knight::<P, _, _>(b, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
         list.clear();
-        self.gen_pawn_moves::<P, _>(b, &info, &mut list, blockers);
+        self.gen_pawn_moves::<P, _, _>(b, &info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
         true
     }
 
-    pub fn gen_moves_player<P: Player, T: GenType, M: MoveList>(
+    pub fn gen_moves_player<P: Player, T: GenType, M: MoveList, C: MoveChain>(
         &self,
-        b: &Board,
+        b: &Board<C>,
         list: &mut M,
     ) -> PositionInfo {
-        let info = PositionInfo::about::<P>(self.tables, b);
+        let info = PositionInfo::about::<P, _>(self.tables, b);
 
         let target = if T::QUIET { !info.my } else { info.their };
 
-        if (info.attacked & b[P::KING]).any() {
-            self.gen_evasion::<P, T, _>(b, &info, list, target);
+        if (info.attacked & b.pieces[P::KING]).any() {
+            self.gen_evasion::<P, T, _, _>(b, &info, list, target);
         } else {
-            self.gen_moves_pseudo::<P, T, _>(b, &info, list, target);
+            self.gen_moves_pseudo::<P, T, _, _>(b, &info, list, target);
         }
 
         if T::LEGAL {
             let mut cur = 0;
             for i in 0..list.len() {
                 let m = list.get(i);
-                if self.is_legal_player::<P>(list.get(i), b, &info) {
+                if self.is_legal_player::<P, _>(list.get(i), b, &info) {
                     list.set(cur, m);
                     cur += 1;
                 }
@@ -357,28 +418,28 @@ impl MoveGenerator {
         info
     }
 
-    pub fn gen_evasion<P: Player, T: GenType, M: MoveList>(
+    pub fn gen_evasion<P: Player, T: GenType, M: MoveList, C: MoveChain>(
         &self,
-        b: &Board,
+        b: &Board<C>,
         info: &PositionInfo,
         list: &mut M,
         target: BB,
     ) {
-        let king_sq = b[P::KING].first_piece();
+        let king_sq = b.pieces[P::KING].first_piece();
         let attackers = self.tables.bishop_attacks(king_sq, info.occupied)
-            & (b[P::Opponent::QUEEN] | b[P::Opponent::BISHOP])
+            & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP])
             | self.tables.rook_attacks(king_sq, info.occupied)
-                & (b[P::Opponent::QUEEN] | b[P::Opponent::ROOK])
-            | self.tables.knight_attacks(king_sq) & b[P::Opponent::KNIGHT]
-            | b[P::KING].shift(P::ATTACK_LEFT) & b[P::Opponent::PAWN]
-            | b[P::KING].shift(P::ATTACK_RIGHT) & b[P::Opponent::PAWN];
+                & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK])
+            | self.tables.knight_attacks(king_sq) & b.pieces[P::Opponent::KNIGHT]
+            | b.pieces[P::KING].shift(P::ATTACK_LEFT) & b.pieces[P::Opponent::PAWN]
+            | b.pieces[P::KING].shift(P::ATTACK_RIGHT) & b.pieces[P::Opponent::PAWN];
 
         let attackers_count = attackers.count();
 
         assert!(attackers_count > 0);
 
         let mut king_moves = self.tables.king_attacks(king_sq) & target & !info.attacked;
-        for p in attackers & !(b[P::Opponent::KNIGHT] | b[P::Opponent::PAWN]) {
+        for p in attackers & !(b.pieces[P::Opponent::KNIGHT] | b.pieces[P::Opponent::PAWN]) {
             king_moves &= !(self.tables.line(king_sq, p) & !BB::square(p));
         }
 
@@ -392,23 +453,23 @@ impl MoveGenerator {
 
         let mut blockers = attackers;
         if T::QUIET {
-            if (attackers & b[P::Opponent::KNIGHT]).none() {
+            if (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
                 blockers |= self.tables.between(attackers.first_piece(), king_sq);
             }
         }
-        self.gen_moves_sliders::<P, T, M>(b, info, list, blockers);
-        self.gen_moves_knight::<P, M>(b, list, blockers);
-        self.gen_pawn_moves::<P, M>(b, info, list, blockers);
+        self.gen_moves_sliders::<P, T, M, _>(b, info, list, blockers);
+        self.gen_moves_knight::<P, M, _>(b, list, blockers);
+        self.gen_pawn_moves::<P, M, _>(b, info, list, blockers);
     }
 
-    pub fn gen_moves_pseudo<P: Player, T: GenType, M: MoveList>(
+    pub fn gen_moves_pseudo<P: Player, T: GenType, M: MoveList, C: MoveChain>(
         &self,
-        b: &Board,
+        b: &Board<C>,
         info: &PositionInfo,
         list: &mut M,
         target: BB,
     ) {
-        let king_sq = b[P::KING].first_piece();
+        let king_sq = b.pieces[P::KING].first_piece();
         for s in self.tables.king_attacks(king_sq) & target {
             list.push(Move::normal(king_sq, s));
         }
@@ -416,29 +477,29 @@ impl MoveGenerator {
         {
             let mut target = target;
             if T::CHECKS {
-                target |= b[P::Opponent::KING].shift(P::Opponent::ATTACK_LEFT)
-                    | b[P::Opponent::KING].shift(P::Opponent::ATTACK_LEFT)
+                target |= b.pieces[P::Opponent::KING].shift(P::Opponent::ATTACK_LEFT)
+                    | b.pieces[P::Opponent::KING].shift(P::Opponent::ATTACK_LEFT)
             }
-            self.gen_pawn_moves::<P, M>(b, info, list, target);
+            self.gen_pawn_moves::<P, M, _>(b, info, list, target);
         }
         {
             let mut target = target;
             if T::CHECKS {
                 target |= self
                     .tables
-                    .knight_attacks(b[P::Opponent::KING].first_piece())
+                    .knight_attacks(b.pieces[P::Opponent::KING].first_piece())
             }
-            self.gen_moves_knight::<P, M>(b, list, target);
+            self.gen_moves_knight::<P, M, _>(b, list, target);
         }
-        self.gen_moves_sliders::<P, T, M>(b, info, list, target);
+        self.gen_moves_sliders::<P, T, M, _>(b, info, list, target);
         if T::QUIET {
-            self.gen_castle::<P, M>(b, info, list);
+            self.gen_castle::<P, M, _>(b, info, list);
         }
     }
 
-    pub fn gen_pawn_moves<P: Player, M: MoveList>(
+    pub fn gen_pawn_moves<P: Player, M: MoveList, C: MoveChain>(
         &self,
-        b: &Board,
+        b: &Board<C>,
         info: &PositionInfo,
         list: &mut M,
         target: BB,
@@ -446,7 +507,7 @@ impl MoveGenerator {
         let tgt = target & !P::RANK_8;
         let tgt_promote = target & P::RANK_8;
 
-        let attacked = b[P::PAWN].shift(P::ATTACK_LEFT) & info.their;
+        let attacked = b.pieces[P::PAWN].shift(P::ATTACK_LEFT) & info.their;
         for p in attacked & tgt {
             list.push(Move::normal(p - P::ATTACK_LEFT.as_offset(), p));
         }
@@ -454,7 +515,7 @@ impl MoveGenerator {
             self.gen_promotions(p - P::ATTACK_LEFT.as_offset(), p, list);
         }
 
-        let attacked = b[P::PAWN].shift(P::ATTACK_RIGHT) & info.their;
+        let attacked = b.pieces[P::PAWN].shift(P::ATTACK_RIGHT) & info.their;
         for p in attacked & tgt {
             list.push(Move::normal(p - P::ATTACK_RIGHT.as_offset(), p));
         }
@@ -462,7 +523,7 @@ impl MoveGenerator {
             self.gen_promotions(p - P::ATTACK_RIGHT.as_offset(), p, list);
         }
 
-        let moved = b[P::PAWN].shift(P::PAWN_MOVE) & !info.occupied;
+        let moved = b.pieces[P::PAWN].shift(P::PAWN_MOVE) & !info.occupied;
         let pawn_move = P::PAWN_MOVE.as_offset();
         for p in moved & tgt {
             list.push(Move::normal(p - pawn_move, p));
@@ -482,7 +543,7 @@ impl MoveGenerator {
             if (file & (P::Opponent::RANK_3 | P::RANK_5) & target).none() {
                 return;
             }
-            let pawn_on_rank = b[P::PAWN] & P::RANK_5;
+            let pawn_on_rank = b.pieces[P::PAWN] & P::RANK_5;
             let pawn = file.shift(P::LEFT) & pawn_on_rank;
             if pawn.any() {
                 let sq = pawn.first_piece();
@@ -502,7 +563,12 @@ impl MoveGenerator {
         }
     }
 
-    pub fn gen_castle<P: Player, M: MoveList>(&self, b: &Board, info: &PositionInfo, list: &mut M) {
+    pub fn gen_castle<P: Player, M: MoveList, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        info: &PositionInfo,
+        list: &mut M,
+    ) {
         const CASTLE_KING_ATTACKED_MASK: BB = BB(0b01100000);
         const CASTLE_QUEEN_ATTACKED_MASK: BB = BB(0b00001100);
         const CASTLE_KING_EMPTY_MASK: BB = BB(0b01100000);
@@ -538,9 +604,9 @@ impl MoveGenerator {
         list.push(Move::promotion(from, to, Move::PROMOTION_BISHOP));
     }
 
-    pub fn gen_moves_sliders<P: Player, T: GenType, M: MoveList>(
+    pub fn gen_moves_sliders<P: Player, T: GenType, M: MoveList, C: MoveChain>(
         &self,
-        b: &Board,
+        b: &Board<C>,
         info: &PositionInfo,
         list: &mut M,
         target: BB,
@@ -550,11 +616,11 @@ impl MoveGenerator {
             if T::CHECKS {
                 target |= self
                     .tables
-                    .bishop_attacks(b[P::Opponent::KING].first_piece(), info.occupied)
+                    .bishop_attacks(b.pieces[P::Opponent::KING].first_piece(), info.occupied)
                     & !info.my;
             }
 
-            let bishops = b[P::BISHOP] | b[P::QUEEN];
+            let bishops = b.pieces[P::BISHOP] | b.pieces[P::QUEEN];
             for b in bishops {
                 for m in self.tables.bishop_attacks(b, info.occupied) & target {
                     list.push(Move::normal(b, m));
@@ -567,10 +633,10 @@ impl MoveGenerator {
             if T::CHECKS {
                 target |= self
                     .tables
-                    .rook_attacks(b[P::Opponent::KING].first_piece(), info.occupied)
+                    .rook_attacks(b.pieces[P::Opponent::KING].first_piece(), info.occupied)
                     & !info.my;
             }
-            let rooks = b[P::ROOK] | b[P::QUEEN];
+            let rooks = b.pieces[P::ROOK] | b.pieces[P::QUEEN];
             for b in rooks {
                 for m in self.tables.rook_attacks(b, info.occupied) & target {
                     list.push(Move::normal(b, m));
@@ -579,35 +645,45 @@ impl MoveGenerator {
         }
     }
 
-    pub fn gen_moves_knight<P: Player, M: MoveList>(&self, b: &Board, list: &mut M, target: BB) {
-        for k in b[P::KNIGHT] {
+    pub fn gen_moves_knight<P: Player, M: MoveList, C: MoveChain>(
+        &self,
+        b: &Board<C>,
+        list: &mut M,
+        target: BB,
+    ) {
+        for k in b.pieces[P::KNIGHT] {
             for a in self.tables.knight_attacks(k) & target {
                 list.push(Move::normal(k, a));
             }
         }
     }
-    pub fn is_legal(&self, m: Move, b: &Board, info: &PositionInfo) -> bool {
+    pub fn is_legal<C: MoveChain>(&self, m: Move, b: &Board<C>, info: &PositionInfo) -> bool {
         match b.state.player {
-            crate::Player::White => self.is_legal_player::<White>(m, b, info),
-            crate::Player::Black => self.is_legal_player::<Black>(m, b, info),
+            crate::Player::White => self.is_legal_player::<White, C>(m, b, info),
+            crate::Player::Black => self.is_legal_player::<Black, C>(m, b, info),
         }
     }
 
-    pub fn is_legal_player<P: Player>(&self, m: Move, b: &Board, info: &PositionInfo) -> bool {
+    pub fn is_legal_player<P: Player, C: MoveChain>(
+        &self,
+        m: Move,
+        b: &Board<C>,
+        info: &PositionInfo,
+    ) -> bool {
         let from = m.from();
         let to = m.to();
 
         if m.ty() == Move::TYPE_EN_PASSANT {
-            let king_sq = b[P::KING].first_piece();
+            let king_sq = b.pieces[P::KING].first_piece();
             let captured = to - P::PAWN_MOVE.as_offset();
             let occupied =
                 info.occupied ^ (BB::square(captured) | BB::square(from) | BB::square(to));
 
             return (self.tables.bishop_attacks(king_sq, occupied)
-                & (b[P::Opponent::QUEEN] | b[P::Opponent::BISHOP]))
+                & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP]))
                 .none()
                 && (self.tables.rook_attacks(king_sq, occupied)
-                    & (b[P::Opponent::QUEEN] | b[P::Opponent::ROOK]))
+                    & (b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK]))
                     .none();
         }
 
@@ -616,6 +692,8 @@ impl MoveGenerator {
         }
 
         return (info.blockers & BB::square(m.from())).none()
-            || self.tables.aligned(from, to, b[P::KING].first_piece());
+            || self
+                .tables
+                .aligned(from, to, b.pieces[P::KING].first_piece());
     }
 }

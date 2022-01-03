@@ -1,6 +1,6 @@
 //! A interface for an chess engine
 
-use crate::{board2::Board, Move};
+use crate::{Board, Move};
 use std::collections::HashMap;
 
 pub enum Info {

@@ -1,15 +1,12 @@
 #![allow(dead_code)]
 
-mod fen;
 //mod gen;
 mod bb;
-mod board;
-pub mod board2;
+pub mod board;
 pub mod engine;
 pub mod eval;
 mod extra_state;
 pub mod gen;
-pub mod gen2;
 pub mod hash;
 mod mov;
 mod piece;

@@ -1,4 +1,5 @@
 use chess_core::{
+    board::EndChain,
     gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     hash::Hasher,
     Board,
@@ -9,9 +10,9 @@ fn main() {
     let mut args = env::args();
     args.next();
     let mut board = if let Some(x) = args.next() {
-        Board::from_fen(&x).unwrap()
+        Board::from_fen(&x, EndChain).unwrap()
     } else {
-        Board::start_position()
+        Board::start_position(EndChain)
     };
 
     let hasher = Hasher::new();
@@ -36,7 +37,7 @@ fn perft(
         return;
     }
     let mut buffer = InlineBuffer::<128>::new();
-    gen.gen_moves::<gen_type::All, _>(b, &mut buffer);
+    gen.gen_moves::<gen_type::All, _, _>(b, &mut buffer);
     for i in 0..buffer.len() {
         let m = buffer.get(i);
         let last = *count;

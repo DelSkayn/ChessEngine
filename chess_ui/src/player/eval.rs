@@ -1,7 +1,7 @@
 use super::Player;
 use crate::{board::RenderBoard, game::PlayedMove};
 use chess_core::{
-    board2::{Board, EndChain},
+    board::{Board, EndChain},
     engine::{Engine, Info, ShouldRun},
     uci::ThreadManger,
     Move,

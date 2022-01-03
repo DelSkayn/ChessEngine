@@ -1,7 +1,7 @@
 use crate::{
-    board2::{Board as BaseBoard, EndChain, HashChain},
+    board::{Board as BaseBoard, EndChain, HashChain},
     engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
-    gen2::{gen_type, InlineBuffer, MoveGenerator, MoveList},
+    gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     util::{BoardArray, PieceArray},
     Move, Piece, Player,
 };
