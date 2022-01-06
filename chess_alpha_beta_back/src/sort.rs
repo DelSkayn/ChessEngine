@@ -1,4 +1,6 @@
-use super::{AlphaBeta, Board};
+use crate::eval;
+
+use super::Board;
 use chess_core::{
     gen::{InlineBuffer, MoveList},
     Move,
@@ -13,17 +15,17 @@ pub struct MoveSorter<'a, const SIZE: usize> {
 impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
     const PIECE_VALUE: [i32; 12] = [
         0,
-        AlphaBeta::QUEEN_VALUE,
-        AlphaBeta::BISHOP_VALUE,
-        AlphaBeta::KNIGHT_VALUE,
-        AlphaBeta::ROOK_VALUE,
-        AlphaBeta::PAWN_VALUE,
+        eval::QUEEN_VALUE,
+        eval::BISHOP_VALUE,
+        eval::KNIGHT_VALUE,
+        eval::ROOK_VALUE,
+        eval::PAWN_VALUE,
         0,
-        AlphaBeta::QUEEN_VALUE,
-        AlphaBeta::BISHOP_VALUE,
-        AlphaBeta::KNIGHT_VALUE,
-        AlphaBeta::ROOK_VALUE,
-        AlphaBeta::PAWN_VALUE,
+        eval::QUEEN_VALUE,
+        eval::BISHOP_VALUE,
+        eval::KNIGHT_VALUE,
+        eval::ROOK_VALUE,
+        eval::PAWN_VALUE,
     ];
 
     pub fn new(
@@ -72,8 +74,7 @@ impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
         let from = board.on(m.from()).unwrap();
 
         if let Some(to) = board.on(m.to()) {
-            Self::PIECE_VALUE[to as usize] - Self::PIECE_VALUE[from as usize]
-                + AlphaBeta::QUEEN_VALUE
+            Self::PIECE_VALUE[to as usize] - Self::PIECE_VALUE[from as usize] + eval::QUEEN_VALUE
         } else {
             0
         }

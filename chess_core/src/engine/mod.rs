@@ -1,8 +1,12 @@
 //! A interface for an chess engine
 
 use crate::{Board, Move};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
+mod thread;
+pub use thread::{EngineThread, Response, ThreadController};
+
+#[derive(Debug)]
 pub enum Info {
     // A best move found
     BestMove { mov: Move, value: i32 },
@@ -43,32 +47,80 @@ pub enum OptionValue {
     String(String),
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub enum ShouldRun {
-    Continue,
-    Stop,
+pub trait EngineControl: Default + 'static {
+    fn should_stop(&self) -> bool;
+
+    fn info(&self, info: Info);
 }
 
-impl ShouldRun {
-    pub fn chain(self, other: Self) -> ShouldRun {
-        if other == ShouldRun::Stop {
-            ShouldRun::Stop
-        } else {
-            self
+#[derive(Default)]
+pub struct NoControl;
+
+impl EngineControl for NoControl {
+    fn should_stop(&self) -> bool {
+        false
+    }
+
+    fn info(&self, _: Info) {}
+}
+
+#[derive(Default)]
+pub struct EngineLimit {
+    pub depth: Option<u32>,
+    pub nodes: Option<u64>,
+    pub time: Option<Duration>,
+}
+
+impl EngineLimit {
+    pub fn time(d: Duration) -> Self {
+        EngineLimit {
+            time: Some(d),
+            ..Default::default()
+        }
+    }
+
+    pub fn nodes(d: u64) -> Self {
+        EngineLimit {
+            nodes: Some(d),
+            ..Default::default()
+        }
+    }
+
+    pub fn depth(d: u32) -> Self {
+        EngineLimit {
+            depth: Some(d),
+            ..Default::default()
+        }
+    }
+
+    pub fn none() -> Self {
+        Default::default()
+    }
+
+    pub fn or(&self, other: EngineLimit) -> Self {
+        EngineLimit {
+            depth: self.depth.or(other.depth),
+            nodes: self.nodes.or(other.nodes),
+            time: self.time.or(other.time),
         }
     }
 }
 
-pub trait Engine: 'static {
+pub trait Engine<C: EngineControl>: 'static {
     const AUTHOR: &'static str = "Mees Delzenne";
     const NAME: &'static str;
 
+    /// Run the search
+    fn go(&mut self, control: C, time_left: Option<Duration>, limit: EngineLimit) -> Option<Move>;
+
+    /*
     /// Run the search
     fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
         &mut self,
         f: F,
         fc: Fc,
     ) -> Option<Move>;
+    */
 
     /// Set the board
     fn set_board(&mut self, board: Board);
@@ -81,8 +133,10 @@ pub trait Engine: 'static {
     fn new_game(&mut self) {}
 
     /// Get the options
-    fn options(&self) -> HashMap<String, OptionKind>;
+    fn options(&self) -> HashMap<String, OptionKind> {
+        HashMap::new()
+    }
 
     /// Set an option
-    fn set_option(&mut self, name: String, value: OptionValue);
+    fn set_option(&mut self, _: String, _: OptionValue) {}
 }

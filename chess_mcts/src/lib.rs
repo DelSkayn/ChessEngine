@@ -4,7 +4,7 @@
 mod list;
 use chess_core::{
     board::{Board, EndChain},
-    engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
+    engine::{Engine, EngineControl, Info, OptionKind, OptionValue},
     gen::{gen_type, Black, InlineBuffer, MoveGenerator, MoveList, PositionInfo, White},
     hash::Hasher,
     Move, Piece, Player, UnmakeMove,
@@ -57,7 +57,7 @@ impl Default for Options {
     }
 }
 
-pub struct Mcts {
+pub struct Mcts<C> {
     root: NodeId,
     list: List<Node>,
     pub options: Options,
@@ -65,14 +65,15 @@ pub struct Mcts {
     move_gen: MoveGenerator,
     iterations: u32,
     pub retry_quites: bool,
+    control: C,
 }
 
-impl Mcts {
+impl<C: EngineControl> Mcts<C> {
     const SCORE_WIN: f32 = 1.0;
     const SCORE_DRAW: f32 = 0.5;
     const SCORE_LOSE: f32 = 0.0;
 
-    pub fn new() -> Mcts {
+    pub fn new() -> Self {
         let mut list = List::new();
         let board = Board::start_position(EndChain);
         let move_gen = MoveGenerator::new();
@@ -84,6 +85,7 @@ impl Mcts {
             move_gen,
             iterations: 0,
             retry_quites: false,
+            control: C::default(),
         }
     }
 
@@ -265,7 +267,7 @@ impl Mcts {
     }
 }
 
-impl Engine for Mcts {
+impl<C: EngineControl> Engine<C> for Mcts<C> {
     const NAME: &'static str = "Random play MCTS";
 
     fn set_board(&mut self, board: Board) {
@@ -323,11 +325,14 @@ impl Engine for Mcts {
         }
     }
 
-    fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
+    fn go(
         &mut self,
-        mut f: F,
-        fc: Fc,
+        control: C,
+        _time_left: Option<std::time::Duration>,
+        _limit: chess_core::engine::EngineLimit,
     ) -> Option<Move> {
+        self.control = control;
+
         self.iterations = 0;
         self.list.clear();
         self.root = self
@@ -338,12 +343,13 @@ impl Engine for Mcts {
             return None;
         }
 
-        while fc() == ShouldRun::Continue {
+        while !self.control.should_stop() {
             self.iteration();
             self.iterations += 1;
         }
 
-        f(Info::Debug(format!("Iterations: {}", self.iterations)));
+        self.control
+            .info(Info::Debug(format!("Iterations: {}", self.iterations)));
 
         let mut most_simulations = 0;
         let mut m = None;
@@ -351,7 +357,7 @@ impl Engine for Mcts {
         for (c, mov) in self.list[self.root].children.iter().copied() {
             let sim = self.list[c].simulations;
             let cur_score = self.list[c].score;
-            f(Info::Debug(format!(
+            self.control.info(Info::Debug(format!(
                 "{}:{} = {}",
                 mov,
                 sim,
@@ -364,7 +370,7 @@ impl Engine for Mcts {
             }
         }
 
-        f(Info::Debug(format!("score: {}", score)));
+        self.control.info(Info::Debug(format!("score: {}", score)));
 
         self.dump_tree();
 

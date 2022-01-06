@@ -2,7 +2,7 @@
 
 use chess_core::{
     board::{Board as BaseBoard, EndChain, HashChain},
-    engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
+    engine::{Engine, EngineControl, EngineLimit, OptionKind, OptionValue},
     gen::MoveGenerator,
     Move,
 };
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 type Board = BaseBoard<HashChain<EndChain>>;
 
-pub struct AlphaBeta {
+pub struct AlphaBeta<C> {
     contempt: i32,
     board: Board,
     table: hash::HashTable,
@@ -26,9 +26,11 @@ pub struct AlphaBeta {
     nodes: u64,
     table_hit: u64,
     depth: u8,
+    control: C,
+    limits: EngineLimit,
 }
 
-impl AlphaBeta {
+impl<C: EngineControl> AlphaBeta<C> {
     pub fn new() -> Self {
         AlphaBeta {
             contempt: 100,
@@ -39,21 +41,25 @@ impl AlphaBeta {
             nodes: 0,
             table_hit: 0,
             depth: 0,
+            control: C::default(),
+            limits: EngineLimit::none(),
         }
     }
 }
 
-impl Engine for AlphaBeta {
+impl<C: EngineControl> Engine<C> for AlphaBeta<C> {
     const NAME: &'static str = "Alpha Beta 1";
 
-    fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
+    fn go(
         &mut self,
-        f: F,
-        fc: Fc,
+        control: C,
+        _time_left: Option<std::time::Duration>,
+        limit: chess_core::engine::EngineLimit,
     ) -> Option<Move> {
-        self.nodes = 0;
+        self.control = control;
+        self.limits = limit;
 
-        self.go_search(f, fc)
+        self.go_search()
     }
 
     fn make_move(&mut self, m: Move) {

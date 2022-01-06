@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use anyhow::Result;
 use chess_core::{
     board::EndChain,
-    engine::{Engine, Info, OptionKind, ShouldRun},
+    engine::{Engine, EngineControl, OptionKind},
     gen::{gen_type, MoveGenerator},
-    uci::Uci,
     Board, Move,
 };
+use chess_uci::Uci;
 use rand::Rng;
 
 pub struct Random {
@@ -24,13 +24,14 @@ impl Random {
     }
 }
 
-impl Engine for Random {
+impl<C: EngineControl> Engine<C> for Random {
     const NAME: &'static str = "Random";
 
-    fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
+    fn go(
         &mut self,
-        _f: F,
-        _fc: Fc,
+        _: C,
+        _: Option<std::time::Duration>,
+        _: chess_core::engine::EngineLimit,
     ) -> Option<Move> {
         let mut moves = Vec::new();
         self.gen

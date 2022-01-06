@@ -1,11 +1,11 @@
 use crate::{
     board::{Board as BaseBoard, EndChain, HashChain},
-    engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
+    engine::{Engine, EngineControl, EngineLimit, Info, OptionKind, OptionValue},
     gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
     util::{BoardArray, PieceArray},
     Move, Piece, Player,
 };
-use std::{collections::HashMap as RHashMap, mem};
+use std::{collections::HashMap as RHashMap, mem, time::Duration};
 
 mod search;
 
@@ -80,7 +80,7 @@ impl HashMap {
     }
 }
 
-pub struct Eval {
+pub struct Eval<C: EngineControl> {
     gen: MoveGenerator,
     hashmap: HashMap,
     nodes_evaluated: usize,
@@ -88,9 +88,11 @@ pub struct Eval {
     cut_offs: usize,
     value_lookup: PieceArray<i32>,
     board: Board,
+    control: C,
+    limits: EngineLimit,
 }
 
-impl Engine for Eval {
+impl<C: EngineControl> Engine<C> for Eval<C> {
     const NAME: &'static str = "Eval";
 
     fn set_board(&mut self, board: BaseBoard) {
@@ -122,11 +124,10 @@ impl Engine for Eval {
         }
     }
 
-    fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
-        &mut self,
-        mut f: F,
-        fc: Fc,
-    ) -> Option<Move> {
+    fn go(&mut self, control: C, _time_left: Option<Duration>, limit: EngineLimit) -> Option<Move> {
+        self.limits = limit;
+        self.control = control;
+
         let redo = [200, i32::MAX];
 
         let mut moves = InlineBuffer::<128>::new();
@@ -149,7 +150,7 @@ impl Engine for Eval {
         let mut redo_alpha = 0;
         let mut redo_beta = 0;
         'main: loop {
-            f(Info::Depth(depth));
+            self.control.info(Info::Depth(depth));
 
             let mut value = match b.state.player {
                 Player::White => -i32::MAX,
@@ -160,8 +161,8 @@ impl Engine for Eval {
                 let undo = b.make_move(m);
                 //assert!(b.is_valid());
                 let move_value = match b.state.player {
-                    Player::Black => self.alpha_beta_min(&mut b, value, beta, depth, &fc),
-                    Player::White => self.alpha_beta_max(&mut b, alpha, value, depth, &fc),
+                    Player::Black => self.alpha_beta_min(&mut b, value, beta, depth),
+                    Player::White => self.alpha_beta_max(&mut b, alpha, value, depth),
                 };
                 b.unmake_move(undo);
                 assert_eq!(prev, b);
@@ -183,7 +184,7 @@ impl Engine for Eval {
                     }
                 }
 
-                if fc() == ShouldRun::Stop {
+                if self.control.should_stop() {
                     break 'main;
                 }
             }
@@ -202,16 +203,14 @@ impl Engine for Eval {
             redo_alpha = 0;
             redo_beta = 0;
 
-            let cont = if let Some(mov) = best_move {
-                f(Info::BestMove { mov, value })
-            } else {
-                ShouldRun::Continue
+            if let Some(mov) = best_move {
+                self.control.info(Info::BestMove { mov, value });
             }
-            .chain(f(Info::Nodes(self.nodes_evaluated)))
-            .chain(f(Info::TransHit(self.table_hits)))
-            .chain(f(Info::Round));
+            self.control.info(Info::Nodes(self.nodes_evaluated));
+            self.control.info(Info::TransHit(self.table_hits));
+            self.control.info(Info::Round);
 
-            if cont == ShouldRun::Stop {
+            if self.control.should_stop() {
                 break;
             }
 
@@ -242,7 +241,7 @@ pub struct Buffers {
     depth: Vec<Vec<Move>>,
 }
 
-impl Eval {
+impl<C: EngineControl> Eval<C> {
     pub const PAWN_VALUE: i32 = 100;
     pub const KNIGHT_VALUE: i32 = 320;
     pub const BISHOP_VALUE: i32 = 325;
@@ -309,6 +308,8 @@ impl Eval {
             cut_offs: 0,
             value_lookup,
             board,
+            control: C::default(),
+            limits: EngineLimit::none(),
         }
     }
 }

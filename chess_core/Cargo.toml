@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 rand = "0.8.3"
 anyhow = "1.0.38"
+crossbeam-channel = "0.5.1"
 
 [dev-dependencies]
 criterion = "0.3.4"

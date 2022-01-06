@@ -1,11 +1,10 @@
 use crate::{
-    engine::ShouldRun,
     gen::{InlineBuffer, MoveList, PositionInfo},
     Move, Piece, Player,
 };
 
 use super::*;
-impl Eval {
+impl<C: EngineControl> Eval<C> {
     const MAX_DEPTH: u8 = 99;
 
     pub fn alpha_beta_max(
@@ -14,9 +13,8 @@ impl Eval {
         mut alpha: i32,
         mut beta: i32,
         depth: u16,
-        stop: &impl Fn() -> ShouldRun,
     ) -> i32 {
-        if stop() == ShouldRun::Stop {
+        if self.control.should_stop() {
             return -Self::CHECK_VALUE;
         }
 
@@ -66,7 +64,7 @@ impl Eval {
         for (idx, m) in buffer.iter().enumerate() {
             let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
-            let value = self.alpha_beta_min(b, alpha, beta, depth - 1, stop);
+            let value = self.alpha_beta_min(b, alpha, beta, depth - 1);
             b.unmake_move(undo);
             if value > alpha {
                 best_move = idx as u16;
@@ -103,9 +101,8 @@ impl Eval {
         mut alpha: i32,
         mut beta: i32,
         depth: u16,
-        stop: &impl Fn() -> ShouldRun,
     ) -> i32 {
-        if stop() == ShouldRun::Stop {
+        if self.control.should_stop() {
             return Self::CHECK_VALUE;
         }
 
@@ -151,7 +148,7 @@ impl Eval {
         for (idx, m) in buffer.iter().enumerate() {
             let undo = b.make_move(m);
             //assert!(b.is_valid(), "{:?}", b);
-            let value = self.alpha_beta_max(b, alpha, beta, depth - 1, stop);
+            let value = self.alpha_beta_max(b, alpha, beta, depth - 1);
             b.unmake_move(undo);
             if value < beta {
                 best_move = idx as u16;

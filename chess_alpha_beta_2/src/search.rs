@@ -1,11 +1,11 @@
-use crate::sort::MoveSorter;
+use crate::{eval, sort::MoveSorter};
 
 use super::{
     hash::{TableScore, TableValue},
     AlphaBeta,
 };
 use chess_core::{
-    engine::{Info, ShouldRun},
+    engine::{EngineControl, Info},
     gen::{gen_type, InlineBuffer, MoveList},
     Move, Player,
 };
@@ -13,14 +13,14 @@ use std::{mem::MaybeUninit, ptr};
 
 #[derive(Debug)]
 pub struct Line {
-    v: [MaybeUninit<Move>; AlphaBeta::MAX_DEPTH as usize],
+    v: [MaybeUninit<Move>; MAX_DEPTH as usize],
     len: usize,
 }
 
 impl Line {
     pub const fn new() -> Self {
         Line {
-            v: [MaybeUninit::uninit(); AlphaBeta::MAX_DEPTH as usize],
+            v: [MaybeUninit::uninit(); MAX_DEPTH as usize],
             len: 0,
         }
     }
@@ -53,18 +53,24 @@ impl Line {
         }
     }
 }
+pub const CHECKMATE_SCORE: i32 = 1_000_000;
+const INIT_BOUND: i32 = 2_000_000;
+const INVALID_SCORE: i32 = 2_121_212;
+const MAX_DEPTH: u8 = 99;
 
-impl AlphaBeta {
-    pub const CHECKMATE_SCORE: i32 = 1_000_000;
-    const INIT_BOUND: i32 = 2_000_000;
-    const INVALID_SCORE: i32 = 2_121_212;
-    const MAX_DEPTH: u8 = 99;
+impl<C: EngineControl> AlphaBeta<C> {
+    pub fn should_stop(&self) -> bool {
+        let nodes = self.nodes;
+        self.control.should_stop()
+            || self.limits.nodes.map(|x| x > nodes).unwrap_or(false)
+            || self
+                .time_limit
+                .as_ref()
+                .map(|x| x.should_stop(nodes))
+                .unwrap_or(false)
+    }
 
-    pub fn go_search<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
-        &mut self,
-        mut f: F,
-        fc: Fc,
-    ) -> Option<Move> {
+    pub fn go_search(&mut self) -> Option<Move> {
         self.nodes = 0;
         self.table_hit = 0;
 
@@ -87,12 +93,12 @@ impl AlphaBeta {
 
         let mut best_move_total = Move::INVALID;
 
-        let mut lower = Self::INIT_BOUND;
-        let mut upper = -Self::INIT_BOUND;
+        let mut lower = INIT_BOUND;
+        let mut upper = -INIT_BOUND;
 
         let mut hit_bound = false;
 
-        'depth_loop: while self.depth <= Self::MAX_DEPTH {
+        'depth_loop: while self.depth <= MAX_DEPTH {
             let mut best_move = Move::INVALID;
             let mut line = Line::new();
 
@@ -105,8 +111,7 @@ impl AlphaBeta {
 
                 while let Some(m) = sort.next_move(&self.board) {
                     let undo = self.board.make_move(m);
-                    let value =
-                        -self.search(self.depth - 1, -upper, -lower, -color, &mut line, &fc);
+                    let value = -self.search(self.depth - 1, -upper, -lower, -color, &mut line);
                     self.board.unmake_move(undo);
                     if value > upper {
                         self.pv.apply(m, &line);
@@ -115,15 +120,15 @@ impl AlphaBeta {
                     }
                 }
 
-                if fc() == ShouldRun::Stop {
+                if self.should_stop() {
                     break 'depth_loop;
                 }
 
                 if !hit_bound && upper == lower || upper == pref_upper {
-                    lower = Self::INIT_BOUND;
-                    upper = -Self::INIT_BOUND;
+                    lower = INIT_BOUND;
+                    upper = -INIT_BOUND;
                     hit_bound = true;
-                    f(Info::Debug("RETRY".to_string()));
+                    self.control.info(Info::Debug("RETRY".to_string()));
                 } else {
                     break;
                 }
@@ -131,26 +136,32 @@ impl AlphaBeta {
 
             best_move_total = best_move;
 
-            let cont = f(Info::Depth(self.depth as u16))
-                .chain(f(Info::BestMove {
-                    mov: best_move_total,
-                    value: color * upper,
-                }))
-                .chain(f(Info::Nodes(self.nodes as usize)))
-                .chain(f(Info::TransHit(self.table_hit as usize)))
-                .chain(f(Info::Pv(self.pv.get_pv().to_vec())))
-                .chain(f(Info::Round));
+            self.control.info(Info::Depth(self.depth as u16));
+            self.control.info(Info::BestMove {
+                mov: best_move_total,
+                value: color * upper,
+            });
+            self.control.info(Info::Nodes(self.nodes as usize));
+            self.control.info(Info::TransHit(self.table_hit as usize));
+            self.control.info(Info::Pv(self.pv.get_pv().to_vec()));
+            self.control.info(Info::Round);
 
-            if cont == ShouldRun::Stop {
+            if self.should_stop()
+                || self
+                    .limits
+                    .depth
+                    .map(|x| x >= self.depth as u32)
+                    .unwrap_or(false)
+            {
                 break;
             }
 
-            if upper.abs() == Self::CHECKMATE_SCORE {
+            if upper.abs() == CHECKMATE_SCORE {
                 break;
             }
 
-            lower = upper + AlphaBeta::PAWN_VALUE / 4;
-            upper = upper - AlphaBeta::PAWN_VALUE / 4;
+            lower = upper + eval::PAWN_VALUE / 4;
+            upper = upper - eval::PAWN_VALUE / 4;
             hit_bound = false;
 
             self.depth += 1;
@@ -163,17 +174,16 @@ impl AlphaBeta {
         }
     }
 
-    fn search<Fc: Fn() -> ShouldRun>(
+    fn search(
         &mut self,
         depth: u8,
         mut lower: i32,
         mut upper: i32,
         color: i32,
         pv_line: &mut Line,
-        fc: &Fc,
     ) -> i32 {
-        if fc() == ShouldRun::Stop {
-            return -Self::INVALID_SCORE;
+        if self.should_stop() {
+            return -INVALID_SCORE;
         }
 
         let mut hash_move = None;
@@ -201,7 +211,7 @@ impl AlphaBeta {
 
         if depth == 0 {
             let q = self.quiesce(lower, upper, color);
-            assert_ne!(q.abs(), Self::INIT_BOUND);
+            assert_ne!(q.abs(), INIT_BOUND);
             return q;
         }
 
@@ -216,13 +226,13 @@ impl AlphaBeta {
 
         if buffer.len() == 0 {
             if self.gen.checked_king(&self.board, &pos_info) {
-                return -Self::CHECKMATE_SCORE;
+                return -CHECKMATE_SCORE;
             } else {
                 return -self.contempt;
             }
         }
 
-        let mut value = -Self::INIT_BOUND;
+        let mut value = -INIT_BOUND;
 
         let mut new_line = Line::new();
 
@@ -233,7 +243,7 @@ impl AlphaBeta {
 
         while let Some(m) = sort.next_move(&self.board) {
             let undo = self.board.make_move(m);
-            value = value.max(-self.search(depth - 1, -upper, -lower, -color, &mut new_line, fc));
+            value = value.max(-self.search(depth - 1, -upper, -lower, -color, &mut new_line));
             self.board.unmake_move(undo);
             if value > upper {
                 best_move = m;

@@ -2,7 +2,7 @@
 
 use chess_core::{
     board::{Board as BaseBoard, EndChain, HashChain},
-    engine::{Engine, Info, OptionKind, OptionValue, ShouldRun},
+    engine::{Engine, EngineControl, EngineLimit, OptionKind, OptionValue},
     gen::MoveGenerator,
     Move,
 };
@@ -13,11 +13,50 @@ mod search;
 mod sort;
 use search::Line;
 
-use std::collections::HashMap;
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 type Board = BaseBoard<HashChain<EndChain>>;
 
-pub struct AlphaBeta {
+pub struct TimeLimit {
+    start: Instant,
+    limit: Duration,
+    nodes_searched: u64,
+    exceeded: Cell<bool>,
+}
+
+impl TimeLimit {
+    const WAIT_NODES: u64 = 10_000;
+
+    pub fn limit(limit: Duration) -> Self {
+        TimeLimit {
+            start: Instant::now(),
+            limit,
+            nodes_searched: 0,
+            exceeded: Cell::new(false),
+        }
+    }
+
+    fn check_time(&self, nodes: u64) -> bool {
+        if nodes > self.nodes_searched + Self::WAIT_NODES {
+            let res = self.start.elapsed() > self.limit;
+            self.exceeded.set(res);
+            res
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn should_stop(&self, nodes: u64) -> bool {
+        self.exceeded.get() || self.check_time(nodes)
+    }
+}
+
+pub struct AlphaBeta<C> {
     contempt: i32,
     board: Board,
     table: hash::HashTable,
@@ -26,9 +65,12 @@ pub struct AlphaBeta {
     nodes: u64,
     table_hit: u64,
     depth: u8,
+    control: C,
+    limits: EngineLimit,
+    time_limit: Option<TimeLimit>,
 }
 
-impl AlphaBeta {
+impl<C: EngineControl> AlphaBeta<C> {
     pub fn new() -> Self {
         AlphaBeta {
             contempt: 100,
@@ -39,21 +81,35 @@ impl AlphaBeta {
             nodes: 0,
             table_hit: 0,
             depth: 0,
+            control: C::default(),
+            limits: EngineLimit::none(),
+            time_limit: None,
         }
     }
 }
 
-impl Engine for AlphaBeta {
+impl<C: EngineControl> Engine<C> for AlphaBeta<C> {
     const NAME: &'static str = "AlphaBeta 2";
 
-    fn go<F: FnMut(Info) -> ShouldRun, Fc: Fn() -> ShouldRun>(
+    fn go(
         &mut self,
-        f: F,
-        fc: Fc,
+        control: C,
+        time_left: Option<std::time::Duration>,
+        limit: chess_core::engine::EngineLimit,
     ) -> Option<Move> {
-        self.nodes = 0;
+        self.control = control;
+        self.limits = limit;
 
-        self.go_search(f, fc)
+        let time_limit = match (self.limits.time, time_left) {
+            (None, None) => None,
+            (Some(x), None) => Some(x),
+            (None, Some(x)) => Some(x / 30),
+            (Some(a), Some(b)) => Some(a.min(b / 30)),
+        };
+
+        self.time_limit = time_limit.map(TimeLimit::limit);
+
+        self.go_search()
     }
 
     fn make_move(&mut self, m: Move) {
