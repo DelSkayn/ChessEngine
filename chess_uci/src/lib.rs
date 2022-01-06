@@ -5,6 +5,7 @@ use std::{
     collections::HashMap,
     fmt,
     io::{self, BufRead},
+    time::Duration,
 };
 
 use anyhow::{anyhow, bail, ensure, Result};
@@ -12,7 +13,7 @@ use chess_core::{
     board::{Board, EndChain},
     engine::{Engine, EngineLimit, EngineThread, Info, OptionKind, Response, ThreadController},
     gen::{gen_type, MoveGenerator},
-    Move, Square,
+    Move, Player, Square,
 };
 use crossbeam_channel::select;
 
@@ -154,7 +155,7 @@ impl Uci {
                 "off" => self.debug_mode = false,
                 _ => bail!("misformed command"),
             },
-            "go" => self.manager.start(None, EngineLimit::none()),
+            "go" => self.parse_go(rest)?,
             "stop" => self.manager.stop(),
             "ucinewgame" => {}
             "position" => self.parse_position(rest)?,
@@ -167,6 +168,62 @@ impl Uci {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn parse_go(&self, arg: &str) -> Result<()> {
+        let mut iter = arg.split_whitespace();
+        let mut time_limit = None;
+        let mut limits = EngineLimit::none();
+        while let Some(cmd) = iter.next() {
+            match cmd {
+                "wtime" => {
+                    let time = iter
+                        .next()
+                        .ok_or_else(|| anyhow!("missing time number"))?
+                        .parse()?;
+                    if self.board.state.player == Player::White {
+                        time_limit = Some(Duration::from_millis(time));
+                    }
+                }
+                "btime" => {
+                    let time = iter
+                        .next()
+                        .ok_or_else(|| anyhow!("missing time number"))?
+                        .parse()?;
+                    if self.board.state.player == Player::Black {
+                        time_limit = Some(Duration::from_millis(time));
+                    }
+                }
+                "depth" => {
+                    let depth = iter
+                        .next()
+                        .ok_or_else(|| anyhow!("missing depth number"))?
+                        .parse()?;
+                    limits.depth = Some(depth);
+                }
+                "nodes" => {
+                    let nodes = iter
+                        .next()
+                        .ok_or_else(|| anyhow!("missing nodes number"))?
+                        .parse()?;
+                    limits.nodes = Some(nodes);
+                }
+                "movetime" => {
+                    let time = iter
+                        .next()
+                        .ok_or_else(|| anyhow!("missing nodes number"))?
+                        .parse()?;
+                    limits.time = Some(Duration::from_millis(time));
+                }
+                "infinite" => {
+                    self.manager.start(None, EngineLimit::none());
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+        self.manager.start(time_limit, limits);
         Ok(())
     }
 
