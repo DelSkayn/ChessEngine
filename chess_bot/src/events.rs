@@ -27,7 +27,7 @@ pub struct Challenge {
     status: ChallengeStatus,
     challenger: User,
     dest_user: User,
-    variant: ChallengeVariant,
+    variant: Variant,
     rated: bool,
     time_control: TimeControl,
     color: ChallengeColor,
@@ -43,7 +43,7 @@ pub struct TimeControl {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ChallengeVariant {
+pub struct Variant {
     key: String,
     name: String,
     short: String,
@@ -69,10 +69,83 @@ pub struct ChallengeCompat {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ChallengeStatus {
     Created,
     Canceled,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GameClock {
+    initial: u64,
+    increment: u64,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FullGame {
+    id: String,
+    rated: bool,
+    variant: Variant,
+    clock: GameClock,
+    speed: String,
+    white: User,
+    black: User,
+    created_at: u64,
+    initial_fen: String,
+    state: GameState,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum GameStatus {
+    Started,
+    Resign,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum GameWinner {
+    Black,
+    White,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GameState {
+    moves: String,
+    wtime: u64,
+    btime: u64,
+    winc: u64,
+    binc: u64,
+    status: GameStatus,
+    #[serde(default)]
+    winner: Option<GameWinner>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum ChatRoom {
+    Player,
+    Spectator,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatLine {
+    username: String,
+    text: String,
+    room: ChatRoom,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum GameEvent {
+    GameFull(FullGame),
+    GameState(GameState),
+    ChatLine(ChatLine),
 }
 
 pub struct ToNdJson<'a> {
