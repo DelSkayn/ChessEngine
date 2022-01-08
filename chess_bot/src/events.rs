@@ -1,19 +1,30 @@
-use anyhow::Result;
+use std::fmt::{self, Display};
+
+use anyhow::{Context, Result};
 use hyper::{body::HttpBody, Body};
 use serde::{de::DeserializeOwned, Deserialize};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
-enum Event {
+pub enum Event {
     Challenge { challenge: Challenge },
     ChallengeCanceled { challenge: Challenge },
-    ChallengeDeclinded { challenge: Challenge },
+    ChallengeDeclined { challenge: Challenge },
+    GameStart { game: Game },
+    GameFinish { game: Game },
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-enum ChallengeColor {
+pub struct Game {
+    pub id: String,
+    pub compat: ChallengeCompat,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub enum ChallengeColor {
     Random,
     White,
     Black,
@@ -22,50 +33,53 @@ enum ChallengeColor {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Challenge {
-    id: String,
-    url: String,
-    status: ChallengeStatus,
-    challenger: User,
-    dest_user: User,
-    variant: Variant,
-    rated: bool,
-    time_control: TimeControl,
-    color: ChallengeColor,
-    speed: String,
+    pub id: String,
+    pub url: String,
+    pub status: ChallengeStatus,
+    pub challenger: User,
+    pub dest_user: User,
+    pub variant: Variant,
+    pub rated: bool,
+    pub time_control: TimeControl,
+    pub color: ChallengeColor,
+    pub speed: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct TimeControl {
-    r#type: String,
-    limit: u64,
-    increment: u64,
-    show: String,
+    pub r#type: String,
+    #[serde(default)]
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub increment: Option<u64>,
+    #[serde(default)]
+    pub show: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Variant {
-    key: String,
-    name: String,
-    short: String,
+    pub key: String,
+    pub name: String,
+    pub short: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct User {
-    id: String,
-    name: String,
-    title: Option<String>,
-    rating: u32,
+    pub id: String,
+    pub name: String,
+    pub title: Option<String>,
+    pub rating: u32,
     #[serde(default)]
-    provisional: bool,
-    online: bool,
+    pub provisional: bool,
+    pub online: bool,
     #[serde(default)]
-    lag: Option<u32>,
+    pub lag: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ChallengeCompat {
-    bot: bool,
-    board: bool,
+    pub bot: bool,
+    pub board: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -73,28 +87,29 @@ pub struct ChallengeCompat {
 pub enum ChallengeStatus {
     Created,
     Canceled,
+    Declined,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GameClock {
-    initial: u64,
-    increment: u64,
+    pub initial: u64,
+    pub increment: u64,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FullGame {
-    id: String,
-    rated: bool,
-    variant: Variant,
-    clock: GameClock,
-    speed: String,
-    white: User,
-    black: User,
-    created_at: u64,
-    initial_fen: String,
-    state: GameState,
+    pub id: String,
+    pub rated: bool,
+    pub variant: Variant,
+    pub clock: GameClock,
+    pub speed: String,
+    pub white: User,
+    pub black: User,
+    pub created_at: u64,
+    pub initial_fen: String,
+    pub state: GameState,
 }
 
 #[derive(Deserialize, Debug)]
@@ -114,14 +129,14 @@ pub enum GameWinner {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GameState {
-    moves: String,
-    wtime: u64,
-    btime: u64,
-    winc: u64,
-    binc: u64,
-    status: GameStatus,
+    pub moves: String,
+    pub wtime: u64,
+    pub btime: u64,
+    pub winc: u64,
+    pub binc: u64,
+    pub status: GameStatus,
     #[serde(default)]
-    winner: Option<GameWinner>,
+    pub winner: Option<GameWinner>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -131,12 +146,21 @@ pub enum ChatRoom {
     Spectator,
 }
 
+impl Display for ChatRoom {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            ChatRoom::Player => write!(f, "player"),
+            ChatRoom::Spectator => write!(f, "spectator"),
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatLine {
-    username: String,
-    text: String,
-    room: ChatRoom,
+    pub username: String,
+    pub text: String,
+    pub room: ChatRoom,
 }
 
 #[derive(Deserialize, Debug)]
@@ -148,14 +172,14 @@ pub enum GameEvent {
     ChatLine(ChatLine),
 }
 
-pub struct ToNdJson<'a> {
-    body: &'a mut Body,
+pub struct FromNdJson {
+    body: Body,
     buffer: Vec<u8>,
 }
 
-impl<'a> ToNdJson<'a> {
-    pub fn new(body: &'a mut Body) -> Self {
-        ToNdJson {
+impl FromNdJson {
+    pub fn new(body: Body) -> Self {
+        FromNdJson {
             body,
             buffer: Vec::new(),
         }
@@ -175,7 +199,12 @@ impl<'a> ToNdJson<'a> {
                 std::mem::swap(&mut value, &mut self.buffer);
                 if value.len() > 1 {
                     trace!("recieved json: {:?}", std::str::from_utf8(&value));
-                    return Ok(Some(serde_json::from_slice(&value)?));
+                    return Ok(Some(serde_json::from_slice(&value).with_context(|| {
+                        format!(
+                            "Could not parse string: `{}`",
+                            std::str::from_utf8(&value).unwrap_or("invalid utf8")
+                        )
+                    })?));
                 }
             }
             if let Some(x) = self.body.data().await {
@@ -185,14 +214,4 @@ impl<'a> ToNdJson<'a> {
             }
         }
     }
-}
-
-pub async fn parse_incoming_events(body: &mut Body) -> Result<()> {
-    let mut incomming = ToNdJson::new(body);
-    while let Some(x) = incomming.next_event::<Event>().await.transpose() {
-        info!("recieved event: {:?}", x);
-    }
-    info!("server quit");
-
-    Ok(())
 }
