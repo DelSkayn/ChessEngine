@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
                 }
             }
             events::Event::GameStart { game } => {
-                let game_future = bot.spawn_game(game.id.clone(), Path::new("ls"));
+                let game_future = bot.spawn_game(game.id.clone(), Path::new("./engine"));
 
                 tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_secs(1)).await;

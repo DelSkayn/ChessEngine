@@ -71,7 +71,7 @@ pub struct User {
     pub rating: u32,
     #[serde(default)]
     pub provisional: bool,
-    pub online: bool,
+    pub online: Option<bool>,
     #[serde(default)]
     pub lag: Option<u32>,
 }
@@ -103,7 +103,7 @@ pub struct FullGame {
     pub id: String,
     pub rated: bool,
     pub variant: Variant,
-    pub clock: GameClock,
+    pub clock: Option<GameClock>,
     pub speed: String,
     pub white: User,
     pub black: User,
@@ -112,18 +112,27 @@ pub struct FullGame {
     pub state: GameState,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum GameStatus {
     Started,
     Resign,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
-pub enum GameWinner {
+pub enum Player {
     Black,
     White,
+}
+
+impl From<Player> for chess_core::Player {
+    fn from(c: Player) -> Self {
+        match c {
+            Player::Black => chess_core::Player::Black,
+            Player::White => chess_core::Player::White,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -136,7 +145,7 @@ pub struct GameState {
     pub binc: u64,
     pub status: GameStatus,
     #[serde(default)]
-    pub winner: Option<GameWinner>,
+    pub winner: Option<Player>,
 }
 
 #[derive(Deserialize, Debug)]
