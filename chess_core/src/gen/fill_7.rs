@@ -1,4 +1,6 @@
-use crate::BB;
+//! implementations of the fill_7 algorithm.
+
+use crate::bb::BB;
 
 macro_rules! fill_7 {
     ($($name:ident $([$exclude:expr])*($($c:tt)*),)*) => {

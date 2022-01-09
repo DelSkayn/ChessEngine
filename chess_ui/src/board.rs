@@ -1,7 +1,8 @@
 use chess_core::{
+    bb::BB,
     board::{Board, UnmakeMove},
     hash::Hasher,
-    Move, Piece, Square, BB,
+    Move, Piece, Square,
 };
 use ggez::{
     graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect, Text},

@@ -1,7 +1,8 @@
 mod hash;
-use crate::{util::PieceArray, ExtraState, Piece, Square, BB};
+use crate::{bb::BB, util::PieceArray, ExtraState, Piece, Square};
 pub use hash::HashChain;
 
+/// Trait for implementing additional behaviour when making a move
 pub trait MoveChain {
     type Next: MoveChain;
 
@@ -27,6 +28,8 @@ pub trait MoveChain {
     fn unpromote_piece(&mut self, piece: Piece, promote: Piece, from: Square, to: Square);
 }
 
+/// A chain implementing only stub functions.
+/// Should be used as the end of a chain.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct EndChain;
 

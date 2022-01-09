@@ -1,3 +1,5 @@
+//! An basic implementation of an alpha-beta chess engine.
+
 use crate::{
     board::{Board as BaseBoard, EndChain, HashChain},
     engine::{Engine, EngineControl, EngineLimit, Info, OptionKind, OptionValue},

@@ -1,5 +1,5 @@
 mod magic;
-use crate::{util::BoardArray, Square, BB};
+use crate::{bb::BB, util::BoardArray, Square};
 use std::sync::Once;
 
 static mut KNIGHT_ATTACKS: BoardArray<BB> = BoardArray::new_array([BB::empty(); 64]);

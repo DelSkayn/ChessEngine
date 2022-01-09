@@ -1,4 +1,4 @@
-use chess_core::{gen::fill_7, Square, BB};
+use chess_core::{bb::BB, gen::fill_7, Square};
 use rand::Rng;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},

@@ -1,4 +1,6 @@
-use crate::{Direction, Piece, Square, BB};
+//! Kinds of move generation.
+
+use crate::{bb::BB, Direction, Piece, Square};
 
 pub trait GenType {
     const QUIET: bool;

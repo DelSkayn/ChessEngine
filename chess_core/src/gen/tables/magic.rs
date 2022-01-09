@@ -1,5 +1,5 @@
 use crate::gen::fill_7;
-use crate::{util::BoardArray, Square, BB};
+use crate::{bb::BB, util::BoardArray, Square};
 
 const BISHOP_MAGIC: BoardArray<u64> = BoardArray::new_array([
     0x007fbfbfbfbfbfff,

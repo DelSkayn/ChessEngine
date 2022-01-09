@@ -1,8 +1,9 @@
 //! Utilities for hashing a board state.
 
 use crate::{
+    bb::BB,
     util::{BoardArray, PieceArray},
-    ExtraState, Piece, Player, Square, BB,
+    ExtraState, Piece, Player, Square,
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::sync::Once;

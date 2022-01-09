@@ -4,7 +4,6 @@
 use chess_alpha_beta::AlphaBeta;
 use chess_core::{
     board::{Board, EndChain},
-    eval::Eval,
     hash::Hasher,
 };
 use chess_mcts::Mcts;

@@ -1,6 +1,7 @@
 pub use super::{EndChain, MoveChain};
-use crate::{hash::Hasher, util::PieceArray, ExtraState, Piece, Square, BB};
+use crate::{bb::BB, hash::Hasher, util::PieceArray, ExtraState, Piece, Square};
 
+/// Chain implementing zobrist hashing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashChain<C: MoveChain = EndChain> {
     pub hash: u64,

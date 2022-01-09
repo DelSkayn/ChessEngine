@@ -1,6 +1,9 @@
+//! Functions related to the board representation.
+
 use crate::{
+    bb::BB,
     util::{BoardArray, PieceArray},
-    ExtraState, Move, Piece, Player, Square, BB,
+    ExtraState, Move, Piece, Player, Square,
 };
 use std::{
     fmt::{self, Debug},

@@ -1,6 +1,9 @@
+//! Move generation routines.
+
 use crate::{
+    bb::BB,
     board::{Board, MoveChain},
-    ExtraState, Move, Piece, Square, BB,
+    ExtraState, Move, Piece, Square,
 };
 
 pub mod fill_7;
@@ -13,6 +16,8 @@ use tables::Tables;
 
 use std::{mem::MaybeUninit, ptr};
 
+/// A constant size buffer stored on the stack,
+/// Can be used for storing moves without allocation.
 #[derive(Copy)]
 pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
     moves: [MaybeUninit<T>; SIZE],
@@ -128,19 +133,29 @@ impl<const SIZE: usize> MoveList for InlineBuffer<SIZE> {
     }
 }
 
+/// Trait which a list must implement to be used by the move generator.
 pub trait MoveList {
+    /// Add a move to the list.
     fn push(&mut self, m: Move);
 
+    /// Return the move at the given position.
+    /// Should panic if idx is outside bounds.
     fn get(&self, idx: usize) -> Move;
 
+    /// Set the move of give index.
+    /// Should panic if idx is outside bounds.
     fn set(&mut self, idx: usize, m: Move);
 
+    /// Remove all moves.
     fn clear(&mut self);
 
+    /// Return the number of moves.
     fn len(&self) -> usize;
 
+    /// Make the length at maximum the given length.
     fn truncate(&mut self, len: usize);
 
+    /// Swap to moves at given index.
     fn swap(&mut self, a: usize, b: usize);
 }
 
@@ -174,6 +189,7 @@ impl MoveList for Vec<Move> {
     }
 }
 
+/// Info about a position used in various move generation functions.
 pub struct PositionInfo {
     pub occupied: BB,
     pub my: BB,
@@ -184,6 +200,7 @@ pub struct PositionInfo {
 }
 
 impl PositionInfo {
+    /// Create position info of a given position.
     pub fn about<P: Player, M: MoveChain>(table: Tables, b: &Board<M>) -> Self {
         let their_rooks = b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::ROOK];
         let their_bishops = b.pieces[P::Opponent::QUEEN] | b.pieces[P::Opponent::BISHOP];
@@ -254,6 +271,7 @@ impl PositionInfo {
     }
 }
 
+/// Move generator.
 pub struct MoveGenerator {
     tables: Tables,
 }

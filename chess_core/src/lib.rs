@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
 //mod gen;
-mod bb;
+pub mod bb;
 pub mod board;
 pub mod engine;
+#[deprecated]
 pub mod eval;
 mod extra_state;
 pub mod gen;
@@ -12,16 +13,15 @@ mod mov;
 mod piece;
 mod render;
 mod square;
-pub mod uci;
 pub mod util;
 
-pub use bb::BB;
 pub use board::{Board, UnmakeMove};
 pub use extra_state::ExtraState;
 pub use mov::Move;
 pub use piece::Piece;
 pub use square::Square;
 
+/// Enumr representing a player.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Player {
     White,
@@ -29,6 +29,7 @@ pub enum Player {
 }
 
 impl Player {
+    /// Returns the other player
     pub fn flip(self) -> Self {
         match self {
             Player::Black => Player::White,
@@ -51,20 +52,22 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn from_u8(v: u8) -> Self {
+    /// Creates a direction from u8
+    pub fn from_u8(v: u8) -> Option<Self> {
         match v {
-            0 => Direction::NW,
-            1 => Direction::N,
-            2 => Direction::NE,
-            3 => Direction::E,
-            4 => Direction::SE,
-            5 => Direction::S,
-            6 => Direction::SW,
-            7 => Direction::W,
-            _ => panic!(),
+            0 => Some(Direction::NW),
+            1 => Some(Direction::N),
+            2 => Some(Direction::NE),
+            3 => Some(Direction::E),
+            4 => Some(Direction::SE),
+            5 => Some(Direction::S),
+            6 => Some(Direction::SW),
+            7 => Some(Direction::W),
+            _ => None,
         }
     }
 
+    /// Returns the board square index offset of the direction.
     #[inline(always)]
     pub const fn as_offset(self) -> i8 {
         match self {
