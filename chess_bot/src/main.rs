@@ -83,10 +83,13 @@ async fn main() -> Result<()> {
                         Ok(()) => {}
                         Err(e) => {
                             error!("could not start engine : {:?}", e);
-                            game.abort(&[
-                                "Sorry, I seem to be unable to start my brain",
-                                "I will have to abort",
-                            ])
+                            game.giveup(
+                                &[
+                                    "Sorry, I seem to be unable to start my brain",
+                                    "I will have to abort",
+                                ],
+                                true,
+                            )
                             .await;
                             game.quit().await;
                             return;
@@ -97,10 +100,13 @@ async fn main() -> Result<()> {
                         Ok(()) => {}
                         Err(e) => {
                             error!("could not start engine : {:?}", e);
-                            game.abort(&[
-                                "Sorry, I seem to have problems connecting to the game",
-                                "I will have to abort",
-                            ])
+                            game.giveup(
+                                &[
+                                    "Sorry, I seem to have problems connecting to the game",
+                                    "I will have to abort",
+                                ],
+                                true,
+                            )
                             .await;
                             game.quit().await;
                             return;

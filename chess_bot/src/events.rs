@@ -115,8 +115,19 @@ pub struct FullGame {
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum GameStatus {
+    Created,
     Started,
     Resign,
+    Aborted,
+    Mate,
+    Stalemate,
+    Timeout,
+    Draw,
+    Outoftime,
+    NoStart,
+    Cheat,
+    UnknownFinish,
+    VariantEnd,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
