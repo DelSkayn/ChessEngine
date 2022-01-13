@@ -27,6 +27,7 @@ pub enum DeclineReason {
     TimeControl,
     Rated,
     Casual,
+    Varient,
 }
 
 impl Display for DeclineReason {
@@ -38,7 +39,8 @@ impl Display for DeclineReason {
             DeclineReason::TooSlow => write!(f, "tooSlow"),
             DeclineReason::TimeControl => write!(f, "timeControl"),
             DeclineReason::Rated => write!(f, "rated"),
-            DeclineReason::Casual => write!(f, "Casual"),
+            DeclineReason::Casual => write!(f, "casual"),
+            DeclineReason::Varient => write!(f, "variant"),
         }
     }
 }
@@ -173,6 +175,10 @@ impl Bot {
     }
 
     pub fn should_decline(&self, challenge: &Challenge) -> Option<DeclineReason> {
+        if challenge.variant.key != "standard" {
+            return Some(DeclineReason::Varient);
+        }
+
         let limit = challenge.time_control.limit.unwrap_or(u64::MAX);
         let increment = challenge.time_control.increment.unwrap_or(0);
 
