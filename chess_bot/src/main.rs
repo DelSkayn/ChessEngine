@@ -7,7 +7,7 @@ use hyper::{body, client::HttpConnector, Body, Client as BaseClient, Response};
 use hyper_tls::HttpsConnector;
 
 use tracing::info;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::{filter::EnvFilter, fmt::writer::MakeWriterExt};
 
 use crate::bot::DeclineReason;
 
@@ -46,7 +46,10 @@ async fn main() -> Result<()> {
         .context("Failed to open log file")?
         .and(std::io::stdout);
 
-    tracing_subscriber::fmt().with_writer(writer).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_writer(writer)
+        .init();
 
     info!("NNYBot starting!");
     let mut bot = bot::Bot::new("./secrets/token.txt").await?;
