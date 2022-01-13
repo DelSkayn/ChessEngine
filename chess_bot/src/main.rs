@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
-use std::{path::Path, time::Duration};
+use std::{fs::File, path::Path, time::Duration};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use hyper::{body, client::HttpConnector, Body, Client as BaseClient, Response};
 use hyper_tls::HttpsConnector;
 
 use tracing::info;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 use crate::bot::DeclineReason;
 
@@ -41,7 +42,11 @@ async fn handle_failed_response(resp: Response<Body>) -> Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    let writer = File::create("log.txt")
+        .context("Failed to open log file")?
+        .and(std::io::stdout);
+
+    tracing_subscriber::fmt().with_writer(writer).init();
 
     info!("NNYBot starting!");
     let mut bot = bot::Bot::new("./secrets/token.txt").await?;
