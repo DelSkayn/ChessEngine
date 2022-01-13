@@ -197,6 +197,7 @@ impl Game {
     }
 
     pub async fn make_move(&self, m: &str) -> Result<()> {
+        dbg!(m);
         let path = format!("/api/bot/game/{}/move/{}", self.game_id, m);
         let uri = Uri::builder()
             .scheme(SCHEME)

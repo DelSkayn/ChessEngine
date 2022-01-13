@@ -57,7 +57,7 @@ impl Engine {
         loop {
             line_buffer.clear();
             stdout.read_line(&mut line_buffer).await.unwrap();
-            trace!("engine out: {}", line_buffer.trim());
+            trace!("uci: {}", line_buffer.trim());
             if line_buffer.trim() == "uciok" {
                 return;
             }
@@ -129,7 +129,7 @@ impl Engine {
         loop {
             buffer.clear();
             self.stdout.read_line(&mut buffer).await?;
-            trace!("engine: {}", buffer);
+            trace!("uci: {}", buffer.trim());
             if buffer.starts_with("bestmove") {
                 let m = buffer
                     .split_whitespace()
