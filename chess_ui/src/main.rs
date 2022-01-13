@@ -46,7 +46,7 @@ fn main() {
         Board::start_position(EndChain)
     };
 
-    let white = Box::new(MousePlayer::new());
+    let white = Box::new(ThreadedEval::new(1.0, chess_alpha_beta::AlphaBeta::new()));
     let black: Box<dyn Player> = if args.self_play {
         Box::new(MousePlayer::new())
     } else {

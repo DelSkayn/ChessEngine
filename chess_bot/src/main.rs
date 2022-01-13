@@ -55,15 +55,16 @@ async fn main() -> Result<()> {
         match e {
             events::Event::Challenge { challenge } => {
                 info!("recieved challenge from `{}`", challenge.challenger.name);
-                if challenge.challenger.name != "Nenarian" {
-                    bot.decline_challenge(&challenge, DeclineReason::Generic)
-                        .await?;
-                } else if accepting_game || active_game.is_some() {
+                if accepting_game || active_game.is_some() {
                     bot.decline_challenge(&challenge, DeclineReason::Later)
                         .await?;
                 } else {
-                    bot.accept_challenge(&challenge).await?;
-                    accepting_game = true;
+                    if let Some(reason) = bot.should_decline(&challenge) {
+                        bot.decline_challenge(&challenge, reason).await?;
+                    } else {
+                        bot.accept_challenge(&challenge).await?;
+                        accepting_game = true;
+                    }
                 }
             }
             events::Event::GameStart { game } => {

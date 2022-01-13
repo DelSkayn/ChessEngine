@@ -22,6 +22,11 @@ use hyper::{
 pub enum DeclineReason {
     Generic,
     Later,
+    TooFast,
+    TooSlow,
+    TimeControl,
+    Rated,
+    Casual,
 }
 
 impl Display for DeclineReason {
@@ -29,6 +34,11 @@ impl Display for DeclineReason {
         match *self {
             DeclineReason::Generic => write!(f, "generic"),
             DeclineReason::Later => write!(f, "later"),
+            DeclineReason::TooFast => write!(f, "tooFast"),
+            DeclineReason::TooSlow => write!(f, "tooSlow"),
+            DeclineReason::TimeControl => write!(f, "timeControl"),
+            DeclineReason::Rated => write!(f, "rated"),
+            DeclineReason::Casual => write!(f, "Casual"),
         }
     }
 }
@@ -160,6 +170,22 @@ impl Bot {
         info!("accepted challenge from `{}`", challenge.challenger.name);
 
         Ok(())
+    }
+
+    pub fn should_decline(&self, challenge: &Challenge) -> Option<DeclineReason> {
+        let limit = challenge.time_control.limit.unwrap_or(u64::MAX);
+        let increment = challenge.time_control.increment.unwrap_or(0);
+
+        if limit < 60 {
+            return Some(DeclineReason::TooFast);
+        }
+        if limit > 60 * 20 {
+            return Some(DeclineReason::TooSlow);
+        }
+        if increment > 5 {
+            return Some(DeclineReason::TooSlow);
+        }
+        None
     }
 
     pub fn spawn_game(

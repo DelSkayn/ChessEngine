@@ -91,6 +91,6 @@ impl Player for ThreadedEval {
             self.manager.set_board(board.board.clone());
         }
         self.manager
-            .start(Some(self.search_time), EngineLimit::none());
+            .start(None, EngineLimit::time(self.search_time));
     }
 }
