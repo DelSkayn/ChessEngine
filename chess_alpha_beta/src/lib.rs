@@ -13,9 +13,48 @@ mod search;
 mod sort;
 use search::Line;
 
-use std::collections::HashMap;
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 type Board = BaseBoard<HashChain<EndChain>>;
+
+pub struct TimeLimit {
+    start: Instant,
+    limit: Duration,
+    nodes_searched: u64,
+    exceeded: Cell<bool>,
+}
+
+impl TimeLimit {
+    const WAIT_NODES: u64 = 10_000;
+
+    pub fn limit(limit: Duration) -> Self {
+        TimeLimit {
+            start: Instant::now(),
+            limit,
+            nodes_searched: 0,
+            exceeded: Cell::new(false),
+        }
+    }
+
+    fn check_time(&self, nodes: u64) -> bool {
+        if nodes > self.nodes_searched + Self::WAIT_NODES {
+            let res = self.start.elapsed() > self.limit;
+            self.exceeded.set(res);
+            res
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn should_stop(&self, nodes: u64) -> bool {
+        self.exceeded.get() || self.check_time(nodes)
+    }
+}
 
 pub struct AlphaBeta<C> {
     contempt: i32,
@@ -28,6 +67,7 @@ pub struct AlphaBeta<C> {
     depth: u8,
     control: C,
     limits: EngineLimit,
+    time_limit: Option<TimeLimit>,
 }
 
 impl<C: EngineControl> AlphaBeta<C> {
@@ -43,28 +83,37 @@ impl<C: EngineControl> AlphaBeta<C> {
             depth: 0,
             control: C::default(),
             limits: EngineLimit::none(),
+            time_limit: None,
         }
     }
 }
 
 impl<C: EngineControl> Engine<C> for AlphaBeta<C> {
-    const NAME: &'static str = "Alpha Beta 1";
+    const NAME: &'static str = "AlphaBeta 2";
 
     fn go(
         &mut self,
         control: C,
-        _time_left: Option<std::time::Duration>,
+        time_left: Option<std::time::Duration>,
         limit: chess_core::engine::EngineLimit,
     ) -> Option<Move> {
         self.control = control;
         self.limits = limit;
+
+        let time_limit = match (self.limits.time, time_left) {
+            (None, None) => None,
+            (Some(x), None) => Some(x),
+            (None, Some(x)) => Some(x / 30),
+            (Some(a), Some(b)) => Some(a.min(b / 30)),
+        };
+
+        self.time_limit = time_limit.map(TimeLimit::limit);
 
         self.go_search()
     }
 
     fn make_move(&mut self, m: Move) {
         self.board.make_move(m);
-        println!("HASH: {:x}", self.board.chain.hash);
     }
 
     fn options(&self) -> HashMap<String, OptionKind> {
@@ -96,7 +145,7 @@ impl<C: EngineControl> Engine<C> for AlphaBeta<C> {
             "Hash" => {
                 if let OptionValue::Spin(x) = value {
                     if x > 1 && x < 1024 * 4 {
-                        self.table = hash::HashTable::new(x as usize)
+                        self.table = hash::HashTable::new(x as usize * 1024)
                     }
                 }
             }
@@ -115,6 +164,5 @@ impl<C: EngineControl> Engine<C> for AlphaBeta<C> {
 
     fn set_board(&mut self, board: BaseBoard) {
         self.board.copy_position(&board);
-        println!("SET_POSITION");
     }
 }

@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 chess_core = { path = "../chess_core/" }
+anyhow = "1.0.52"

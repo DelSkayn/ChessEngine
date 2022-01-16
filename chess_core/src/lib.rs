@@ -4,8 +4,6 @@
 pub mod bb;
 pub mod board;
 pub mod engine;
-#[deprecated]
-pub mod eval;
 mod extra_state;
 pub mod gen;
 pub mod hash;

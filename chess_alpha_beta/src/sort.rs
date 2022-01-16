@@ -10,9 +10,12 @@ pub struct MoveSorter<'a, const SIZE: usize> {
     moves: &'a mut InlineBuffer<SIZE>,
     hash_move: Option<Move>,
     pv_move: Option<Move>,
+    sort_count: u8,
 }
 
 impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
+    const LIMIT_SORT: u8 = 20;
+
     const PIECE_VALUE: [i32; 12] = [
         0,
         eval::QUEEN_VALUE,
@@ -37,6 +40,7 @@ impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
             moves,
             hash_move,
             pv_move,
+            sort_count: 0,
         }
     }
 
@@ -45,21 +49,23 @@ impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
             return None;
         }
 
-        let mut best = i32::MIN;
-        let (idx, best_move) =
-            self.moves
-                .iter()
-                .enumerate()
-                .fold((0, Move::INVALID), |mut acc, m| {
-                    let score = self.score_move(m.1, board);
-                    if score > best {
-                        best = score;
-                        acc = m;
-                    }
-                    acc
-                });
-        self.moves.swap_remove(idx);
-        return Some(best_move);
+        if self.sort_count < Self::LIMIT_SORT {
+            let mut best = self.score_move(self.moves.get(0), board);
+            let mut sorted = true;
+            for i in 1..self.moves.len() {
+                let score = self.score_move(self.moves.get(i), board);
+                if score > best {
+                    best = score;
+                } else {
+                    sorted = false;
+                    self.moves.swap(i - 1, i);
+                }
+            }
+
+            self.sort_count += if sorted { Self::LIMIT_SORT } else { 1 };
+        }
+
+        return self.moves.pop();
     }
 
     fn score_move(&self, m: Move, board: &Board) -> i32 {

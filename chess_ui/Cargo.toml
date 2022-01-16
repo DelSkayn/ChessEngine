@@ -17,4 +17,3 @@ structopt = "0.3.21"
 chess_core = {path =  "../chess_core"}
 chess_mcts = { path = "../chess_mcts/" }
 chess_alpha_beta = { path = "../chess_alpha_beta/" }
-chess_alpha_beta_2 = { path = "../chess_alpha_beta_2/" }

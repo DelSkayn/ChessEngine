@@ -46,11 +46,11 @@ fn main() {
         Board::start_position(EndChain)
     };
 
-    let white = Box::new(ThreadedEval::new(1.0, chess_alpha_beta::AlphaBeta::new()));
+    let white = Box::new(MousePlayer::new());
     let black: Box<dyn Player> = if args.self_play {
         Box::new(MousePlayer::new())
     } else {
-        Box::new(ThreadedEval::new(2.0, chess_alpha_beta_2::AlphaBeta::new()))
+        Box::new(ThreadedEval::new(2.0, chess_alpha_beta::AlphaBeta::new()))
     };
 
     // Make a Context.

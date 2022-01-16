@@ -317,21 +317,7 @@ dependencies = [
 name = "chess_alpha_beta"
 version = "0.1.0"
 dependencies = [
- "chess_core",
-]
-
-[[package]]
-name = "chess_alpha_beta_2"
-version = "0.1.0"
-dependencies = [
  "anyhow",
- "chess_core",
-]
-
-[[package]]
-name = "chess_alpha_beta_back"
-version = "0.1.0"
-dependencies = [
  "chess_core",
 ]
 
@@ -389,7 +375,7 @@ name = "chess_uci"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chess_alpha_beta_2",
+ "chess_alpha_beta",
  "chess_core",
  "crossbeam-channel",
  "rand",
@@ -401,7 +387,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chess_alpha_beta",
- "chess_alpha_beta_2",
  "chess_core",
  "chess_mcts",
  "crossbeam-channel",

@@ -1,9 +1,9 @@
-use crate::{
-    hash::{TableEntry, TableScore},
-    sort::MoveSorter,
+use crate::{eval, sort::MoveSorter};
+
+use super::{
+    hash::{TableScore, TableValue},
     AlphaBeta,
 };
-
 use chess_core::{
     engine::{EngineControl, Info},
     gen::{gen_type, InlineBuffer, MoveList},
@@ -53,13 +53,23 @@ impl Line {
         }
     }
 }
-
-pub const INIT_BOUND: i32 = 32_001;
-pub const INVALID_SCORE: i32 = 32_002;
-pub const MAX_DEPTH: u8 = 99;
-pub const CHECKMATE_SCORE: i32 = 32_000;
+pub const CHECKMATE_SCORE: i32 = 1_000_000;
+const INIT_BOUND: i32 = 2_000_000;
+const INVALID_SCORE: i32 = 2_121_212;
+const MAX_DEPTH: u8 = 99;
 
 impl<C: EngineControl> AlphaBeta<C> {
+    pub fn should_stop(&self) -> bool {
+        let nodes = self.nodes;
+        self.control.should_stop()
+            || self.limits.nodes.map(|x| x > nodes).unwrap_or(false)
+            || self
+                .time_limit
+                .as_ref()
+                .map(|x| x.should_stop(nodes))
+                .unwrap_or(false)
+    }
+
     pub fn go_search(&mut self) -> Option<Move> {
         self.nodes = 0;
         self.table_hit = 0;
@@ -83,28 +93,45 @@ impl<C: EngineControl> AlphaBeta<C> {
 
         let mut best_move_total = Move::INVALID;
 
-        while self.depth <= MAX_DEPTH {
-            let lower = INIT_BOUND;
-            let mut upper = -INIT_BOUND;
-            let mut line = Line::new();
+        let mut lower = INIT_BOUND;
+        let mut upper = -INIT_BOUND;
+
+        let mut hit_bound = false;
+
+        'depth_loop: while self.depth <= MAX_DEPTH {
             let mut best_move = Move::INVALID;
-            let mut buffer = moves.clone();
+            let mut line = Line::new();
 
-            let mut sort = MoveSorter::new(&mut buffer, None, self.pv.get(0));
+            loop {
+                let mut buffer = moves.clone();
 
-            while let Some(m) = sort.next_move(&self.board) {
-                let undo = self.board.make_move(m);
-                let value = -self.search(self.depth - 1, -upper, -lower, -color, &mut line);
-                self.board.unmake_move(undo);
-                if value > upper {
-                    self.pv.apply(m, &line);
-                    upper = value;
-                    best_move = m;
+                let pref_upper = upper;
+
+                let mut sort = MoveSorter::new(&mut buffer, None, self.pv.get(0));
+
+                while let Some(m) = sort.next_move(&self.board) {
+                    let undo = self.board.make_move(m);
+                    let value = -self.search(self.depth - 1, -upper, -lower, -color, &mut line);
+                    self.board.unmake_move(undo);
+                    if value > upper {
+                        self.pv.apply(m, &line);
+                        upper = value;
+                        best_move = m;
+                    }
                 }
-            }
 
-            if self.control.should_stop() {
-                break;
+                if self.should_stop() {
+                    break 'depth_loop;
+                }
+
+                if !hit_bound && upper == lower || upper == pref_upper {
+                    lower = INIT_BOUND;
+                    upper = -INIT_BOUND;
+                    hit_bound = true;
+                    self.control.info(Info::Debug("RETRY".to_string()));
+                } else {
+                    break;
+                }
             }
 
             best_move_total = best_move;
@@ -119,7 +146,13 @@ impl<C: EngineControl> AlphaBeta<C> {
             self.control.info(Info::Pv(self.pv.get_pv().to_vec()));
             self.control.info(Info::Round);
 
-            if self.control.should_stop() {
+            if self.should_stop()
+                || self
+                    .limits
+                    .depth
+                    .map(|x| x >= self.depth as u32)
+                    .unwrap_or(false)
+            {
                 break;
             }
 
@@ -127,9 +160,11 @@ impl<C: EngineControl> AlphaBeta<C> {
                 break;
             }
 
-            self.depth += 1;
+            lower = upper + eval::PAWN_VALUE / 4;
+            upper = upper - eval::PAWN_VALUE / 4;
+            hit_bound = false;
 
-            self.table.increment_generation();
+            self.depth += 1;
         }
 
         if best_move_total != Move::INVALID {
@@ -147,36 +182,32 @@ impl<C: EngineControl> AlphaBeta<C> {
         color: i32,
         pv_line: &mut Line,
     ) -> i32 {
-        if self.control.should_stop() {
+        if self.should_stop() {
             return -INVALID_SCORE;
         }
 
         let mut hash_move = None;
-        let hash_entry = match self.table.get(self.board.chain.hash) {
-            TableEntry::Miss(x) => x,
-            TableEntry::Hit(hit) => {
-                hash_move = Some(hit.r#move());
-                if hit.depth() >= depth {
-                    self.table_hit += 1;
-                    match hit.score() {
-                        TableScore::Exact(x) => return x,
-                        TableScore::Upper(x) => {
-                            upper = upper.max(x);
-                            if upper >= lower {
-                                return x;
-                            }
+        if let Some(hash) = self.table.get(self.board.chain.hash) {
+            if hash.depth >= depth {
+                self.table_hit += 1;
+                hash_move = Some(hash.r#move);
+                match hash.score {
+                    TableScore::Exact(x) => return x,
+                    TableScore::Upper(x) => {
+                        upper = upper.max(x);
+                        if upper >= lower {
+                            return x;
                         }
-                        TableScore::Lower(x) => {
-                            lower = lower.max(x);
-                            if upper >= lower {
-                                return x;
-                            }
+                    }
+                    TableScore::Lower(x) => {
+                        lower = lower.max(x);
+                        if upper >= lower {
+                            return x;
                         }
                     }
                 }
-                hit.into_entry()
             }
-        };
+        }
 
         if depth == 0 {
             let q = self.quiesce(lower, upper, color);
@@ -232,14 +263,18 @@ impl<C: EngineControl> AlphaBeta<C> {
             TableScore::Exact(value)
         };
 
-        self.table
-            .write(hash_entry, self.board.chain.hash, depth, score, best_move);
+        self.table.set(TableValue {
+            hash: self.board.chain.hash,
+            depth,
+            r#move: best_move,
+            score,
+        });
         return value;
     }
 
     fn quiesce(&mut self, lower: i32, mut upper: i32, color: i32) -> i32 {
-        let pos_info = self.gen.gen_info(&self.board);
-        let value = color * self.eval_board(&pos_info);
+        let info = self.gen.gen_info(&self.board);
+        let value = color * self.eval_board(&info);
         if value >= lower {
             return lower;
         }
@@ -247,9 +282,10 @@ impl<C: EngineControl> AlphaBeta<C> {
 
         let mut buffer = InlineBuffer::<128>::new();
         self.gen
-            .gen_moves_info::<gen_type::Captures, _, _>(&self.board, &pos_info, &mut buffer);
+            .gen_moves_info::<gen_type::Captures, _, _>(&self.board, &info, &mut buffer);
+        let mut sort = MoveSorter::new(&mut buffer, None, None);
 
-        for m in buffer.iter() {
+        while let Some(m) = sort.next_move(&self.board) {
             let undo = self.board.make_move(m);
             let value = -self.quiesce(-upper, -lower, -color);
             self.board.unmake_move(undo);
