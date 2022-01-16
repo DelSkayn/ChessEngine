@@ -18,7 +18,7 @@ use std::{mem::MaybeUninit, ptr};
 
 /// A constant size buffer stored on the stack,
 /// Can be used for storing moves without allocation.
-#[derive(Copy)]
+#[derive(Copy, Debug)]
 pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
     moves: [MaybeUninit<T>; SIZE],
     len: u16,
@@ -432,17 +432,29 @@ impl MoveGenerator {
         let mut list = InlineBuffer::<128>::new();
         self.gen_moves_sliders::<P, gen_type::All, _, _>(b, &info, &mut list, blockers);
         if list.len() > 0 {
-            return false;
+            for m in list.iter() {
+                if self.is_legal(m, b, info) {
+                    return false;
+                }
+            }
         }
         list.clear();
         self.gen_moves_knight::<P, _, _>(b, &mut list, blockers);
         if list.len() > 0 {
-            return false;
+            for m in list.iter() {
+                if self.is_legal(m, b, info) {
+                    return false;
+                }
+            }
         }
         list.clear();
         self.gen_pawn_moves::<P, _, _>(b, &info, &mut list, blockers);
         if list.len() > 0 {
-            return false;
+            for m in list.iter() {
+                if self.is_legal(m, b, info) {
+                    return false;
+                }
+            }
         }
         true
     }

@@ -4,6 +4,7 @@
 use chess_alpha_beta::AlphaBeta;
 use chess_core::{
     board::{Board, EndChain},
+    gen::MoveGenerator,
     hash::Hasher,
 };
 use chess_mcts::Mcts;
@@ -45,6 +46,22 @@ fn main() {
     } else {
         Board::start_position(EndChain)
     };
+
+    let mov_gen = MoveGenerator::new();
+    let info = mov_gen.gen_info(&board);
+    if mov_gen.check_mate(&board, &info) {
+        if board.state.player == chess_core::Player::White {
+            println!("BLACK WON");
+            return;
+        } else {
+            println!("WHITE WON");
+            return;
+        }
+    }
+    if mov_gen.drawn(&board, &info) {
+        println!("DRAWN");
+        return;
+    }
 
     let white = Box::new(MousePlayer::new());
     let black: Box<dyn Player> = if args.self_play {

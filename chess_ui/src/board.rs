@@ -1,6 +1,7 @@
 use chess_core::{
     bb::BB,
     board::{Board, UnmakeMove},
+    gen::MoveGenerator,
     hash::Hasher,
     Move, Piece, Square,
 };
@@ -206,6 +207,7 @@ impl RenderBoard {
 
     pub fn make_move(&mut self, mov: Move) {
         let m = self.board.make_move(mov);
+
         self.made_moves.push(m);
         self.highlight(mov.from(), mov.to());
         self.possible_moves.clear();
