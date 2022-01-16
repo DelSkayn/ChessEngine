@@ -11,7 +11,6 @@ pub mod gen;
 pub mod hash;
 mod mov;
 mod piece;
-mod render;
 mod square;
 pub mod util;
 

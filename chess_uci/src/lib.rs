@@ -12,12 +12,13 @@ use anyhow::{anyhow, bail, ensure, Result};
 use chess_core::{
     board::{Board, EndChain},
     engine::{Engine, EngineLimit, EngineThread, Info, OptionKind, Response, ThreadController},
-    gen::{gen_type, MoveGenerator},
+    gen::{gen_type, InlineBuffer, MoveGenerator},
     Move, Player, Square,
 };
 use crossbeam_channel::select;
 
-struct UciMove(Move);
+#[derive(Clone, Copy)]
+pub struct UciMove(pub Move);
 
 impl fmt::Display for UciMove {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -40,6 +41,47 @@ impl fmt::Display for UciMove {
             }
         }
         Ok(())
+    }
+}
+
+impl UciMove {
+    pub fn from_move(m: Move) -> Self {
+        UciMove(m)
+    }
+
+    pub fn from_name(name: &str, board: &Board) -> Option<Self> {
+        let gen = MoveGenerator::new();
+        let mut buffer = InlineBuffer::<256>::new();
+        gen.gen_moves::<gen_type::All, _, _>(board, &mut buffer);
+
+        let from = Square::from_name(&name[..2])?;
+        let to = Square::from_name(&name[2..4])?;
+
+        let prom = if let Some(prom) = name.chars().nth(4) {
+            if prom == 'q' {
+                Some(Move::PROMOTION_QUEEN)
+            } else if prom == 'r' {
+                Some(Move::PROMOTION_ROOK)
+            } else if prom == 'b' {
+                Some(Move::PROMOTION_BISHOP)
+            } else if prom == 'b' {
+                Some(Move::PROMOTION_KNIGHT)
+            } else {
+                return None;
+            }
+        } else {
+            None
+        };
+
+        for m in buffer.iter() {
+            if m.to() == to && m.from() == from {
+                if m.ty() == Move::TYPE_PROMOTION && Some(m.promotion_piece()) != prom {
+                    continue;
+                }
+                return Some(UciMove(m));
+            }
+        }
+        None
     }
 }
 
@@ -264,18 +306,11 @@ impl Uci {
         let mut iterator = rem.split_whitespace();
         ensure!(iterator.next() == Some("moves"));
 
-        let move_gen = MoveGenerator::new();
-        let mut move_buffer = Vec::new();
-
         for m in iterator {
-            let from = Square::from_name(&m[0..2]).ok_or_else(|| anyhow!("invalid square"))?;
-            let to = Square::from_name(&m[2..4]).ok_or_else(|| anyhow!("invalid square"))?;
-            move_gen.gen_moves::<gen_type::All, _, _>(&board, &mut move_buffer);
-            let m = move_buffer
-                .iter()
-                .copied()
-                .find(|m| m.to() == to && m.from() == from)
-                .ok_or_else(|| anyhow!("invalid move"))?;
+            let m = UciMove::from_name(m, &board)
+                .ok_or_else(|| anyhow!("invalid move"))?
+                .0;
+
             board.make_move(m);
             self.manager.make_move(m);
         }

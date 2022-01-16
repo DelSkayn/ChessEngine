@@ -1,0 +1,15 @@
+[package]
+name = "chess_tournament"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = {version = "1.0.133", features=["derive"]}
+serde_json = "1.0.74"
+chess_core = {path = "../chess_core"}
+chess_uci = {path = "../chess_uci"}
+structopt = "0.3.25"
+anyhow = "1.0.52"
+rand = "0.8.4"

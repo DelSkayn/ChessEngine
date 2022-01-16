@@ -8,6 +8,7 @@ members = [
     "chess_alpha_beta_back",
     "chess_bot",
     "chess_uci",
+    "chess_tournament",
     "find_magic",
 ]
 
