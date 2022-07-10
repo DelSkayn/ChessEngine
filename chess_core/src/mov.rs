@@ -28,6 +28,14 @@ impl Move {
 
     pub const DOUBLE_MOVE_PAWN: u16 = 1 << 14;
 
+    pub fn from_u16(v: u16) -> Self {
+        Move(v)
+    }
+
+    pub fn to_u16(self) -> u16 {
+        self.0
+    }
+
     #[inline]
     pub fn new(from: Square, to: Square, ty: u16, promotion: u16) -> Self {
         Self(from.get() as u16 | (to.get() as u16) << 6 | ty | promotion)
