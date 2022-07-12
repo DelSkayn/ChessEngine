@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 thiserror = "*"
-axum = {version = "0.5.11", features=["ws","headers"]}
+axum = {version = "0.5.11", features=["ws","headers","multipart"]}
 serde = {version = "1.0.138", features=["derive"]}
 sqlx = {version = "0.6.0", features = ["runtime-tokio-native-tls", "postgres","uuid","time"]}
 tokio = {version = "1.19.2", features=["full"]}

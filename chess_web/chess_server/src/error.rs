@@ -16,6 +16,8 @@ pub enum Error {
     ServerError,
     #[error("an error occurred with the database")]
     Sqlx(#[from] sqlx::Error),
+    #[error("an error occurred with file io")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct ApiError {
@@ -41,6 +43,15 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
+impl From<std::io::Error> for ApiError {
+    fn from(e: std::io::Error) -> Self {
+        ApiError {
+            error: Error::Io(e),
+            payload: None,
+        }
+    }
+}
+
 impl Error {
     fn text(&self) -> String {
         format!("{}", self)
@@ -54,6 +65,7 @@ impl Error {
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::ServerError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

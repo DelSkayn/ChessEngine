@@ -47,13 +47,13 @@ impl Model {
     }
 }
 
-pub fn view(model: &Model, classes: &str) -> Node<super::Msg> {
+pub fn view(model: &Model, classes: &str) -> Node<()> {
     div![
         C![classes],
         div![
-            C!["w-full h-full relative aspect-square pointer-events-none rounded overflow-hidden"],
+            C!["w-full h-full relative aspect-square pointer-events-none rounded overflow-hidden z-0"],
             img![
-                C!["w-full h-full static select-none"],
+                C!["w-full h-full static select-none z-0"],
                 attrs! {
                     At::Draggable => "false",
                     At::Src => "board/gray.svg",
@@ -68,7 +68,7 @@ pub fn view(model: &Model, classes: &str) -> Node<super::Msg> {
     ]
 }
 
-fn view_piece(kind: Piece, square: Square, id: usize) -> Node<super::Msg> {
+fn view_piece(kind: Piece, square: Square, id: usize) -> Node<()> {
     const PIECE_SRC_MAP: [&'static str; 12] = [
         "wK.svg", "wQ.svg", "wB.svg", "wN.svg", "wR.svg", "wP.svg", "bK.svg", "bQ.svg", "bB.svg",
         "bN.svg", "bR.svg", "bP.svg",
@@ -82,7 +82,7 @@ fn view_piece(kind: Piece, square: Square, id: usize) -> Node<super::Msg> {
 
     img![
         el_key(&id),
-        C!["w-1/8 h-1/8 absolute transition-all ease-in-out select-none"],
+        C!["w-1/8 h-1/8 absolute transition-all ease-in-out select-none z-0"],
         attrs! {
             At::Style => format!("bottom: {rank_proc}%; left: {file_proc}%")
             At::Src => format!("pieces/{piece_src}")

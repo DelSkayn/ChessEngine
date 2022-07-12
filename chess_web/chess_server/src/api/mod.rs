@@ -11,4 +11,5 @@ pub fn serve() -> Router {
         .route("/user", post(user::create))
         .route("/user", get(user::get))
         .route("/user/login", post(user::login))
+        .route("/engine", post(engine::create))
 }

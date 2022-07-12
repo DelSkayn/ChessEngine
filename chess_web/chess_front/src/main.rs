@@ -2,14 +2,14 @@
 
 use chess_core::{board::EndChain, Board};
 use log::info;
-use seed::{attrs, div, h1, input, prelude::*, C};
+use seed::{attrs, div, h1, input, p, prelude::*, C, IF};
 
 mod board;
-mod create_user;
-mod engine;
-mod file_upload;
-mod login;
-//mod util;
+mod components;
+mod tabs;
+mod top_bar;
+
+pub use tabs::*;
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -20,73 +20,111 @@ fn main() {
     App::start("root", init, update, view);
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tab {
+    Watch,
+    Engines,
+    Games,
+}
+
 #[derive(Debug)]
 pub enum Msg {
-    Login(login::Msg),
+    TopBar(top_bar::Msg),
+    Empty,
+    SwitchTab(Tab),
+    Watch(watch::Msg),
     Engine(engine::Msg),
-    CreateUser(create_user::Msg),
-    ShowCreateUser,
+    //Login(login::Msg),
+    //CreateUser(create_user::Msg),
+    //ShowCreateUser,
+}
+
+pub struct Global {
+    user_token: Option<String>,
 }
 
 pub struct Model {
-    board: board::Model,
-    login: login::Model,
-    engine: engine::Model,
-    create_user: create_user::Model,
+    global: Global,
+    topbar: top_bar::Model,
+    tab_watch: watch::Model,
+    tab_engine: engine::Model,
+    active_tab: Tab,
+    //login: login::Model,
+    //engine: engine::Model,
+    //create_user: create_user::Model,
 }
 
 fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
-    let mut board = board::Model::new();
-    board.set(Board::start_position(EndChain));
-
     Model {
-        board,
-        login: login::Model::new(),
-        engine: engine::Model::new(),
-        create_user: create_user::Model::new(),
+        global: Global { user_token: None },
+        topbar: top_bar::Model::new(),
+        tab_watch: watch::Model::new(),
+        tab_engine: engine::Model::new(),
+        active_tab: Tab::Watch,
+        //login: login::Model::new(),
+        //engine: engine::Model::new(),
+        //create_user: create_user::Model::new(),
     }
 }
 
 pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     info!("{:?}", msg);
     match msg {
-        Msg::Login(msg) => login::update(msg, &mut model.login, &mut orders.proxy(Msg::Login)),
-        Msg::Engine(msg) => {
-            engine::update(msg, &mut model.engine, &mut orders.proxy(Msg::Engine));
-        }
-        Msg::CreateUser(msg) => {
-            create_user::update(
+        Msg::TopBar(msg) => {
+            top_bar::update(
                 msg,
-                &mut model.create_user,
-                &mut orders.proxy(Msg::CreateUser),
+                &mut model.topbar,
+                &mut model.global,
+                &mut orders.proxy(Msg::TopBar),
             );
         }
-        Msg::ShowCreateUser => create_user::update(
-            create_user::Msg::Show,
-            &mut model.create_user,
-            &mut orders.proxy(Msg::CreateUser),
+        Msg::Watch(x) => watch::update(x, &mut model.tab_watch, &mut orders.proxy(Msg::Watch)),
+        Msg::Engine(x) => engine::update(
+            x,
+            &mut model.tab_engine,
+            &mut model.global,
+            &mut orders.proxy(Msg::Engine),
         ),
+        Msg::Empty => {
+            orders.skip();
+        }
+        Msg::SwitchTab(tab) => {
+            model.active_tab = tab;
+        }
     }
 }
 
 pub fn view(model: &Model) -> Node<Msg> {
-    div![
-        C!["w-full h-full flex items-center justify-center bg-gray-200"],
+    let menu_button = |text: &str, active: bool, tab: Tab| {
         div![
-            C!["flex flex-col p-4 w-1/3 shadow-xl rounded-lg bg-gray-100"],
-            h1![C!["italic text-gray-400 mb-2 select-none"], "Chess Web"],
-            board::view(&model.board, "w-full"),
-            login::view(&model.login).map_msg(Msg::Login),
-            engine::view(&model.engine).map_msg(Msg::Engine),
-            create_user::view(&model.create_user).map_msg(Msg::CreateUser),
-            input![
-                attrs! {
-                    At::Type => "button",
-                    At::Value => "Create a new account!",
-                },
-                C!["text-lg transition-all p-1 shadow rounded my-1 bg-green-400 border border-green-400 text-gray-100 hover:bg-green-500 disabled:bg-gray-400 disabled:border-gray-400 disabled:text-gray-200"],
-                ev(Ev::Click, |_| Msg::ShowCreateUser),
+            ev(Ev::Click,move |_| Msg::SwitchTab(tab)),
+            C!["font-bold text-gray-600 px-4 h-full flex items-center hover:bg-gray-300 cursor-pointer"],
+            IF!(active => C!["text-green-600"]),
+            p![text],
+        ]
+    };
+
+    let tab = match model.active_tab {
+        Tab::Watch => watch::view(&model.tab_watch).map_msg(Msg::Watch),
+        Tab::Engines => engine::view(&model.tab_engine, &model.global).map_msg(Msg::Engine),
+        Tab::Games => Node::Empty,
+    };
+
+    div![
+        C!["w-full h-full bg-gray-200 overflow-scroll flex flex-col items-center"],
+        div![
+            C!["mt-16 container flex flex-col"],
+            div![
+                C!["h-10 bg-gray-200 rounded-t shadow flex items-center overflow-hidden select-none"],
+                menu_button("Watch", model.active_tab == Tab::Watch, Tab::Watch),
+                menu_button("Engines", model.active_tab == Tab::Engines, Tab::Engines),
+                menu_button("Games", model.active_tab == Tab::Games, Tab::Games),
+            ],
+            div![
+                C!["bg-gray-100 shadow rounded-b overflow-hidden"],
+                tab
             ]
         ],
+        top_bar::view(&model.topbar, &model.global).map_msg(Msg::TopBar)
     ]
 }
