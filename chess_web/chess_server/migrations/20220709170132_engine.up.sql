@@ -6,10 +6,12 @@ create table "engine"
     name text not null,
     description text,
 
+    engine_file text not null,
+
     previous_version serial references "engine"(engine_id),
 
     games_played integer not null default 0,
-    elo double precision not null default 1000
+    elo double precision not null default 1000,
 
     uploaded_by serial not null references "user"(user_id)
 );

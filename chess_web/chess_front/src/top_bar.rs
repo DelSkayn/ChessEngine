@@ -1,5 +1,4 @@
-use log::info;
-use seed::{div, h3, nodes, p, prelude::*, C};
+use seed::{div, h3, p, prelude::*, C};
 
 use crate::Global;
 

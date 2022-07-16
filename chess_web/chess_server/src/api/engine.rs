@@ -1,7 +1,4 @@
 use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    io,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
@@ -9,8 +6,8 @@ use std::{
 use axum::{extract::Multipart, Extension, Json};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::io::Error as IoError;
 use tokio::{fs, io::AsyncWriteExt};
-use tracing::info;
 
 use crate::{error::Error, session::AdminSession, ApiResult, Context};
 
@@ -23,20 +20,20 @@ pub struct CreateEngineReq {
 
 #[derive(Serialize)]
 pub enum CreateEngineRes {
-    Ok { id: u64 },
+    Ok { id: i32 },
 }
 
 pub struct TempFile(Option<fs::File>, PathBuf);
 
 impl TempFile {
-    pub async fn create<S: AsRef<Path>>(p: S) -> Result<Self, io::Error> {
+    pub async fn create<S: AsRef<Path>>(p: S) -> Result<Self, IoError> {
         let path = p.as_ref().to_path_buf();
         let f: fs::File = fs::File::create(&path).await?;
         Ok(TempFile(Some(f), path))
     }
 
-    pub fn unwrap(mut self) -> fs::File {
-        self.0.take().unwrap()
+    pub fn unwrap(mut self) -> (fs::File, PathBuf) {
+        (self.0.take().unwrap(), self.1.clone())
     }
 }
 
@@ -112,11 +109,33 @@ pub async fn create(
         }
     }
 
-    if name.is_none() || file.is_none() {
-        return Err(Error::BadRequest.into());
-    }
+    let name = name.ok_or(Error::BadRequest)?;
+    let (file, file_name) = file.ok_or(Error::BadRequest)?;
+    let (file, path) = file.unwrap();
 
-    tokio::fs::create_dir_all("./engines").await?;
+    let engine_path = Path::new("engines").join(file_name);
+    let engine_path = tokio::fs::canonicalize(engine_path).await?;
 
-    Ok(Json(CreateEngineRes::Ok { id: 0 }))
+    tokio::fs::create_dir("engines").await?;
+    tokio::fs::rename(path, &engine_path).await?;
+
+    let id = sqlx::query_scalar!(
+        r#"insert into "engine"(
+            name,
+            description,
+            engine_file,
+            uploaded_by
+        ) 
+        values ($1,$2,$3,$4)
+        returning engine_id
+        "#,
+        name,
+        description,
+        engine_path.to_str().unwrap(),
+        user
+    )
+    .fetch_one(&ext.db)
+    .await?;
+
+    Ok(Json(CreateEngineRes::Ok { id }))
 }

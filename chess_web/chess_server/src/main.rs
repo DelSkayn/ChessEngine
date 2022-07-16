@@ -1,5 +1,6 @@
-use axum::{response::IntoResponse, routing::get_service, Extension, Router};
-use error::Error;
+#![allow(dead_code)]
+
+use axum::{http::StatusCode, response::IntoResponse, routing::get_service, Extension, Router};
 use sqlx::postgres::Postgres;
 use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
@@ -9,11 +10,9 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use std::io;
 
 mod api;
+//mod error;
 mod error;
 mod session;
-
-pub type Result<T> = std::result::Result<T, error::Error>;
-pub type ApiResult<T> = std::result::Result<T, error::ApiError>;
 
 type Db = Postgres;
 type Pool = sqlx::Pool<Db>;
@@ -65,7 +64,9 @@ async fn main() {
 
 async fn handle_static_error(e: io::Error) -> impl IntoResponse {
     match e.kind() {
-        io::ErrorKind::NotFound => Error::NotFound,
-        _ => Error::ServerError,
+        io::ErrorKind::NotFound => {
+            (StatusCode::NOT_FOUND, "Could not find request file").into_response()
+        }
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response(),
     }
 }

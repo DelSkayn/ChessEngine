@@ -1,5 +1,5 @@
 use log::{error, info};
-use seed::{attrs, div, fetch, h2, input, prelude::*, C};
+use seed::{attrs, div, fetch, input, prelude::*, C};
 use serde::Serialize;
 
 #[derive(Debug, Clone)]

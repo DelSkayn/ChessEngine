@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context as ErrorContext};
 use argon2::{
     password_hash::{rand_core::OsRng, Error as PassError, PasswordHasher, SaltString},
     Argon2, PasswordHash,
@@ -26,7 +27,7 @@ pub enum CreateUserRes {
 pub async fn create(
     Form(user): Form<CreateUserReq>,
     Extension(ctx): Extension<Context>,
-) -> ApiResult<Json<CreateUserRes>> {
+) -> Result<Json<CreateUserRes>> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
@@ -43,10 +44,7 @@ pub async fn create(
         .fetch_one(&ctx.db)
         .await
         .on_constraint("user_username_key", |_|{
-            ApiError{
-                error: Error::BadRequest,
-                payload: Some("username already exists".to_string())
-            }
+            anyhow!(Error::BadRequest).context("Username already exists")
         })?;
 
     Ok(Json(CreateUserRes::Ok))

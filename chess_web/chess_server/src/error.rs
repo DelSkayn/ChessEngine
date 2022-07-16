@@ -1,9 +1,26 @@
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use anyhow::Result;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Serialize;
 use sqlx::error::DatabaseError;
+use tracing::error;
+
+pub struct ApiError(anyhow::Error);
+
+impl<T> From<T> for ApiError
+where
+    anyhow::Error: From<T>,
+{
+    fn from(e: T) -> Self {
+        ApiError(e.into())
+    }
+}
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub enum ErrorKind {
     #[error("authentication required")]
     Unauthorized,
     #[error("user may not perform that action")]
@@ -12,47 +29,9 @@ pub enum Error {
     NotFound,
     #[error("bad request")]
     BadRequest,
-    #[error("something went wrong on the server side.")]
-    ServerError,
-    #[error("an error occurred with the database")]
-    Sqlx(#[from] sqlx::Error),
-    #[error("an error occurred with file io")]
-    Io(#[from] std::io::Error),
 }
 
-pub struct ApiError {
-    pub error: Error,
-    pub payload: Option<String>,
-}
-
-impl From<Error> for ApiError {
-    fn from(e: Error) -> Self {
-        ApiError {
-            error: e,
-            payload: None,
-        }
-    }
-}
-
-impl From<sqlx::Error> for ApiError {
-    fn from(e: sqlx::Error) -> Self {
-        ApiError {
-            error: Error::Sqlx(e),
-            payload: None,
-        }
-    }
-}
-
-impl From<std::io::Error> for ApiError {
-    fn from(e: std::io::Error) -> Self {
-        ApiError {
-            error: Error::Io(e),
-            payload: None,
-        }
-    }
-}
-
-impl Error {
+impl ErrorKind {
     fn text(&self) -> String {
         format!("{}", self)
     }
@@ -63,53 +42,10 @@ impl Error {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::BadRequest => StatusCode::BAD_REQUEST,
-            Self::ServerError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
 
-impl IntoResponse for Error {
-    fn into_response(self) -> axum::response::Response {
-        (self.status_code(), self.text()).into_response()
-    }
-}
-
-#[derive(Serialize)]
-pub struct ApiResponse {
-    error: String,
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response {
-        let text = self.payload.unwrap_or_else(|| self.error.text());
-
-        (self.error.status_code(), Json(ApiResponse { error: text })).into_response()
-    }
-}
-
-/// A little helper trait for more easily converting database constraint errors into API errors.
-///
-/// ```rust,ignore
-/// let user_id = sqlx::query_scalar!(
-///     r#"insert into "user" (username, email, password_hash) values ($1, $2, $3) returning user_id"#,
-///     username,
-///     email,
-///     password_hash
-/// )
-///     .fetch_one(&ctxt.db)
-///     .await
-///     .on_constraint("user_username_key", |_| Error::unprocessable_entity([("username", "already taken")]))?;
-/// ```
-///
-/// Something like this would ideally live in a `sqlx-axum` crate if it made sense to author one,
-/// however its definition is tied pretty intimately to the `Error` type, which is itself
-/// tied directly to application semantics.
-///
-/// To actually make this work in a generic context would make it quite a bit more complex,
-/// as you'd need an intermediate error type to represent either a mapped or an unmapped error,
-/// and even then it's not clear how to handle `?` in the unmapped case without more boilerplate.
 pub trait ResultExt<T> {
     /// If `self` contains a SQLx database constraint error with the given name,
     /// transform the error.
@@ -131,14 +67,35 @@ where
         name: &str,
         map_err: impl FnOnce(Box<dyn DatabaseError>) -> ApiError,
     ) -> Result<T, ApiError> {
-        self.map_err(|e| match e.into().error {
-            Error::Sqlx(sqlx::Error::Database(dbe)) if dbe.constraint() == Some(name) => {
-                map_err(dbe)
-            }
-            error => ApiError {
-                error,
-                payload: None,
-            },
+        self.map_err(|e| match e.into().0.downcast::<sqlx::Error>() {
+            Ok(sqlx::Error::Database(dbe)) if dbe.constraint() == Some(name) => map_err(dbe),
+            Ok(x) => x.into(),
+            Err(e) => ApiError(e),
         })
+    }
+}
+
+#[derive(Serialize)]
+pub enum SerApiError {
+    Error { error: String },
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        if let Some(cause) = self.0.root_cause().downcast_ref::<ErrorKind>() {
+            let status = cause.status_code();
+            let msg = self.0.to_string();
+            return (status, Json(SerApiError::Error { error: msg })).into_response();
+        }
+
+        error!("{:?}", self.0);
+
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SerApiError::Error {
+                error: "Something went wrong internally".to_string(),
+            }),
+        )
+            .into_response();
     }
 }

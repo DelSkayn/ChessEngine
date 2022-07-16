@@ -1,4 +1,3 @@
-use log::{error, info};
 use seed::{attrs, div, fetch, input, prelude::*, C};
 use serde::{Deserialize, Serialize};
 use web_sys::{Event, KeyboardEvent};

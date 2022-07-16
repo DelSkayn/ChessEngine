@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
-use chess_core::{board::EndChain, Board};
 use log::info;
-use seed::{attrs, div, h1, input, p, prelude::*, C, IF};
+use seed::{div, p, prelude::*, C, IF};
 
 mod board;
 mod components;
