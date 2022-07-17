@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Context as ErrorContext};
 use argon2::{
     password_hash::{rand_core::OsRng, Error as PassError, PasswordHasher, SaltString},
     Argon2, PasswordHash,
@@ -8,9 +7,9 @@ use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::{ApiError, Error, ResultExt},
+    error::{DbResultExt, Error, ErrorContext, ErrorKind},
     session::{self, UserSession},
-    ApiResult, Context,
+    Context,
 };
 
 #[derive(Deserialize)]
@@ -27,7 +26,7 @@ pub enum CreateUserRes {
 pub async fn create(
     Form(user): Form<CreateUserReq>,
     Extension(ctx): Extension<Context>,
-) -> Result<Json<CreateUserRes>> {
+) -> Result<Json<CreateUserRes>, Error> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
@@ -44,7 +43,7 @@ pub async fn create(
         .fetch_one(&ctx.db)
         .await
         .on_constraint("user_username_key", |_|{
-            anyhow!(Error::BadRequest).context("Username already exists")
+            Error::from(ErrorKind::BadRequest).context("Username already exists")
         })?;
 
     Ok(Json(CreateUserRes::Ok))
@@ -61,11 +60,10 @@ pub enum LoginUserRes {
     Ok { token: String },
 }
 
-#[debug_handler]
 pub async fn login(
     Form(user): Form<LoginUserReq>,
     Extension(ctx): Extension<Context>,
-) -> ApiResult<Json<LoginUserRes>> {
+) -> Result<Json<LoginUserRes>, Error> {
     struct Record {
         user_id: i32,
         password: String,
@@ -81,27 +79,21 @@ pub async fn login(
 
     let res = res.map_err(|e| match e {
         sqlx::Error::RowNotFound => {
-            return ApiError {
-                payload: Some("invalid username or password".to_string()),
-                error: Error::BadRequest,
-            }
+            Error::from(ErrorKind::BadRequest).context("invalid username or password")
         }
-        _ => Error::ServerError.into(),
+        e => e.into(),
     })?;
 
     let pass_hash =
-        PasswordHash::parse(&res.password, Default::default()).map_err(|_| Error::ServerError)?;
+        PasswordHash::parse(&res.password, Default::default()).map_err(Error::string)?;
 
     let argon2 = Argon2::default();
 
     match pass_hash.verify_password(&[&argon2], &user.password) {
         Err(PassError::Password) => {
-            return Err(ApiError {
-                payload: Some("invalid username or password".to_string()),
-                error: Error::BadRequest,
-            })
+            return Err(ErrorKind::BadRequest).context("invalid username or password")
         }
-        Err(_) => Err(Error::ServerError)?,
+        Err(e) => return Err(Error::string(e)),
         Ok(()) => {}
     }
 
@@ -119,7 +111,7 @@ pub struct GetUserResponse {
 pub async fn get(
     UserSession(user_id): UserSession,
     Extension(ctx): Extension<Context>,
-) -> ApiResult<Json<GetUserResponse>> {
+) -> Result<Json<GetUserResponse>, Error> {
     let user = sqlx::query_as!(
         GetUserResponse,
         r#"select username, is_admin from "user" where user_id=$1"#,

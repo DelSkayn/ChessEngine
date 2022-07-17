@@ -13,7 +13,7 @@ use sqlx::types::{time::OffsetDateTime, Uuid};
 type Hmacs = Hmac<Sha256>;
 
 use crate::{
-    error::{ApiError, Error},
+    error::{Error, ErrorContext, ErrorKind},
     Context, Pool,
 };
 
@@ -24,7 +24,7 @@ impl<B> FromRequest<B> for UserSession
 where
     B: Send,
 {
-    type Rejection = ApiError;
+    type Rejection = Error;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         let user = extract_user(req).await?;
@@ -39,12 +39,14 @@ impl<B> FromRequest<B> for AdminSession
 where
     B: Send,
 {
-    type Rejection = ApiError;
+    type Rejection = Error;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         let user = extract_user(req).await?;
         if !user.is_admin {
-            return Err(Error::Unauthorized.into());
+            return ErrorKind::Unauthorized
+                .wrap()
+                .context("user is not an admin")?;
         }
         Ok(AdminSession(user.user_id))
     }
@@ -63,7 +65,7 @@ pub fn init_clean(db: Pool) {
     });
 }
 
-pub async fn create(user_id: i32, ctx: &Context) -> Result<String, ApiError> {
+pub async fn create(user_id: i32, ctx: &Context) -> Result<String, Error> {
     let id = sqlx::query_scalar!(
         r#"select session_id from "session" where user_id=$1"#,
         user_id
@@ -106,19 +108,15 @@ struct SessionRecord {
     is_admin: bool,
 }
 
-async fn extract_user<B: Send>(req: &mut RequestParts<B>) -> Result<SessionRecord, ApiError> {
+async fn extract_user<B: Send>(req: &mut RequestParts<B>) -> Result<SessionRecord, Error> {
     let header = req
         .extract::<TypedHeader<Authorization<Bearer>>>()
         .await
-        .map_err(|_| ApiError {
-            error: Error::BadRequest,
-            payload: Some("missing authorization header".to_string()),
-        })?;
+        .map_err(|_| Error::from(ErrorKind::BadRequest).context("missing authorization header"))?;
 
     let token: &str = header.0.token();
-    let (session_id, hmac_hash) = token.trim().split_once('|').ok_or_else(|| ApiError {
-        error: Error::BadRequest,
-        payload: Some("invalid authorization header".to_string()),
+    let (session_id, hmac_hash) = token.trim().split_once('|').ok_or_else(|| {
+        Error::from(ErrorKind::BadRequest).context("invalid authorization header")
     })?;
 
     let Extension(ctx) = req
@@ -126,22 +124,18 @@ async fn extract_user<B: Send>(req: &mut RequestParts<B>) -> Result<SessionRecor
         .await
         .expect("context layer missing");
 
-    let session_bytes = base64::decode(session_id).map_err(|_| ApiError {
-        error: Error::BadRequest,
-        payload: Some("invalid authorization header".to_string()),
-    })?;
+    let session_bytes = base64::decode(session_id)
+        .map_err(|_| Error::from(ErrorKind::BadRequest).context("invalid authorization header"))?;
 
     let mut hmac = Hmacs::new_from_slice(ctx.secret.as_bytes()).unwrap();
     hmac.update(&session_bytes);
-    let hmac_bytes = base64::decode(hmac_hash).map_err(|_| Error::BadRequest)?;
+    let hmac_bytes = base64::decode(hmac_hash).map_err(|_| ErrorKind::BadRequest)?;
     if hmac.verify_slice(&hmac_bytes).is_err() {
-        return Err(Error::Unauthorized.into());
+        ErrorKind::Unauthorized.wrap()?;
     }
 
-    let session_id = Uuid::from_slice(&session_bytes).map_err(|_| ApiError {
-        error: Error::BadRequest,
-        payload: Some("invalid authorization header".to_string()),
-    })?;
+    let session_id = Uuid::from_slice(&session_bytes)
+        .map_err(|_| Error::from(ErrorKind::BadRequest).context("invalid authorization header"))?;
 
     let res = sqlx::query_as::<_, SessionRecord>(
         r#"select 
@@ -155,9 +149,9 @@ async fn extract_user<B: Send>(req: &mut RequestParts<B>) -> Result<SessionRecor
 
     let res = match res {
         Err(sqlx::Error::RowNotFound) => {
-            return Err(Error::Unauthorized.into());
+            return Err(ErrorKind::Unauthorized).context("session invalid");
         }
-        Err(e) => return Err(Error::Sqlx(e).into()),
+        Err(e) => return Err(e.into()),
         Ok(x) => x,
     };
 
@@ -168,7 +162,7 @@ async fn extract_user<B: Send>(req: &mut RequestParts<B>) -> Result<SessionRecor
             .await
             .ok();
 
-        return Err(Error::Unauthorized.into());
+        return Err(ErrorKind::Unauthorized).context("session expired");
     }
 
     if res.timestamp < now - Duration::from_secs(60 * 60) {

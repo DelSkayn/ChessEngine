@@ -8,12 +8,15 @@ create table "engine"
 
     engine_file text not null,
 
-    previous_version serial references "engine"(engine_id),
+    previous_version integer ,
 
     games_played integer not null default 0,
     elo double precision not null default 1000,
 
-    uploaded_by serial not null references "user"(user_id)
+    uploaded_by integer not null,
+
+    foreign key (previous_version) references "engine"(engine_id),
+    foreign key (uploaded_by) references "user"(user_id)
 );
 
 
@@ -30,8 +33,8 @@ create table "game"
 (
     game_id serial primary key,
 
-    player_white serial not null references "engine"(engine_id),
-    player_black serial not null references "engine"(engine_id),
+    player_white integer not null references "engine"(engine_id),
+    player_black integer not null references "engine"(engine_id),
 
     outcome "game_outcome",
 
@@ -43,8 +46,8 @@ select trigger_updated_at('"game"');
 
 create table "game_move"
 (
-    game_id serial not null references "game"(game_id),
-    move_id serial not null references "move"(move_id),
+    game_id integer not null references "game"(game_id),
+    move_id integer not null references "move"(move_id),
 
     white_move boolean not null,
     move_count integer not null,

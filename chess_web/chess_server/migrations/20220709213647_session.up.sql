@@ -3,7 +3,7 @@
 create table "session" (
     session_id uuid primary key default uuid_generate_v4(),
     timestamp timestamptz not null default now(),
-    user_id serial unique not null references "user"(user_id)
+    user_id integer unique not null references "user"(user_id)
 );
 
 create view "session_view" as

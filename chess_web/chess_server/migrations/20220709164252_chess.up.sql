@@ -36,7 +36,8 @@ create type "moves" as (
 create table "position"
 (
     "position_id" serial primary key,
-    "fen" text not null unique 
+    "fen" text not null unique,
+    "name" text
 );
 
 select trigger_updated_at('"position"');
@@ -45,8 +46,8 @@ create table "move"
 (
     move_id serial primary key,
     "move" "moves" not null,
-    "from" serial not null,
-    "to" serial not null,
+    "from" integer not null,
+    "to" integer not null,
     foreign key("from") references "position"("position_id"),
     foreign key("to") references "position"("position_id"),
     unique("from","to")

@@ -1,4 +1,3 @@
-use anyhow::Result;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -6,96 +5,209 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::error::DatabaseError;
+use std::{error::Error as StdError, fmt};
 use tracing::error;
 
-pub struct ApiError(anyhow::Error);
-
-impl<T> From<T> for ApiError
-where
-    anyhow::Error: From<T>,
-{
-    fn from(e: T) -> Self {
-        ApiError(e.into())
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ErrorKind {
-    #[error("authentication required")]
     Unauthorized,
-    #[error("user may not perform that action")]
     Forbidden,
-    #[error("request path not found")]
     NotFound,
-    #[error("bad request")]
     BadRequest,
 }
 
 impl ErrorKind {
-    fn text(&self) -> String {
-        format!("{}", self)
+    pub fn status_code(self) -> StatusCode {
+        match self {
+            ErrorKind::Unauthorized => StatusCode::UNAUTHORIZED,
+            ErrorKind::Forbidden => StatusCode::FORBIDDEN,
+            ErrorKind::NotFound => StatusCode::NOT_FOUND,
+            ErrorKind::BadRequest => StatusCode::BAD_REQUEST,
+        }
     }
 
-    fn status_code(&self) -> StatusCode {
+    pub fn text(&self) -> &'static str {
         match self {
-            Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden => StatusCode::FORBIDDEN,
-            Self::NotFound => StatusCode::NOT_FOUND,
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            ErrorKind::Unauthorized => "Unauthorized",
+            ErrorKind::Forbidden => "Forbidden",
+            ErrorKind::NotFound => "Not found",
+            ErrorKind::BadRequest => "Bad request",
+        }
+    }
+
+    pub fn wrap<T>(self) -> Result<T, Error> {
+        Err(self.into())
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Context { context: String, error: Box<Error> },
+    Specified(ErrorKind),
+    External(Box<dyn StdError + Send + Sync>),
+    String(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Context { context, error } => {
+                (*error).fmt(f)?;
+                writeln!(f, "\t -> {context}")
+            }
+            Self::Specified(e) => {
+                writeln!(f, "Error: {}", e.text())
+            }
+            Self::External(e) => {
+                writeln!(f, "Error: {}", e)
+            }
+            Self::String(e) => {
+                writeln!(f, "Error: {}", e)
+            }
         }
     }
 }
 
-pub trait ResultExt<T> {
-    /// If `self` contains a SQLx database constraint error with the given name,
-    /// transform the error.
-    ///
-    /// Otherwise, the result is passed through unchanged.
-    fn on_constraint(
-        self,
-        name: &str,
-        f: impl FnOnce(Box<dyn DatabaseError>) -> ApiError,
-    ) -> Result<T, ApiError>;
+impl Error {
+    pub fn root(&self) -> &Error {
+        match *self {
+            Error::Context { ref error, .. } => error.root(),
+            ref x => &x,
+        }
+    }
+
+    pub fn string<E: ToString>(e: E) -> Self {
+        Error::String(e.to_string())
+    }
+
+    pub fn context<C: ToString>(self, context: C) -> Self {
+        Error::Context {
+            context: context.to_string(),
+            error: Box::new(self),
+        }
+    }
 }
 
-impl<T, E> ResultExt<T> for Result<T, E>
-where
-    E: Into<ApiError>,
-{
+impl<E: StdError + Send + Sync + 'static> From<E> for Error {
+    fn from(e: E) -> Self {
+        Error::External(Box::new(e))
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(e: ErrorKind) -> Self {
+        Error::Specified(e)
+    }
+}
+
+pub trait DbResultExt<T> {
     fn on_constraint(
         self,
         name: &str,
-        map_err: impl FnOnce(Box<dyn DatabaseError>) -> ApiError,
-    ) -> Result<T, ApiError> {
-        self.map_err(|e| match e.into().0.downcast::<sqlx::Error>() {
-            Ok(sqlx::Error::Database(dbe)) if dbe.constraint() == Some(name) => map_err(dbe),
-            Ok(x) => x.into(),
-            Err(e) => ApiError(e),
+        f: impl FnOnce(Box<dyn DatabaseError>) -> Error,
+    ) -> Result<T, Error>;
+}
+
+impl<T, E: Into<Error>> DbResultExt<T> for Result<T, E> {
+    fn on_constraint(
+        self,
+        name: &str,
+        f: impl FnOnce(Box<dyn DatabaseError>) -> Error,
+    ) -> Result<T, Error> {
+        self.map_err(|e| match e.into() {
+            Error::External(x) => match x.downcast::<sqlx::Error>() {
+                Ok(e) => match *e {
+                    sqlx::Error::Database(e) if e.constraint() == Some(name) => f(e),
+                    e => e.into(),
+                },
+                Err(e) => Error::External(e),
+            },
+            e => e,
+        })
+    }
+}
+
+pub trait ErrorContext<T> {
+    fn context<C: ToString>(self, context: C) -> Result<T, Error>;
+
+    fn with_context<F, C>(self, context: F) -> Result<T, Error>
+    where
+        F: FnOnce() -> C,
+        C: ToString;
+}
+
+impl<T, E: Into<Error>> ErrorContext<T> for Result<T, E> {
+    fn context<C: ToString>(self, context: C) -> Result<T, Error> {
+        self.map_err(|e| Error::Context {
+            context: context.to_string(),
+            error: Box::new(e.into()),
+        })
+    }
+
+    fn with_context<F, C>(self, context: F) -> Result<T, Error>
+    where
+        F: FnOnce() -> C,
+        C: ToString,
+    {
+        self.map_err(|e| Error::Context {
+            context: context().to_string(),
+            error: Box::new(e.into()),
         })
     }
 }
 
 #[derive(Serialize)]
-pub enum SerApiError {
-    Error { error: String },
+struct RespError {
+    err: String,
+    context: Option<Vec<String>>,
 }
 
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        if let Some(cause) = self.0.root_cause().downcast_ref::<ErrorKind>() {
-            let status = cause.status_code();
-            let msg = self.0.to_string();
-            return (status, Json(SerApiError::Error { error: msg })).into_response();
+impl RespError {
+    fn from_error(e: Error) -> Self {
+        match e {
+            Error::Context { context, error } => {
+                if let Error::Specified(_) = *error {
+                    return RespError {
+                        err: context,
+                        context: None,
+                    };
+                }
+
+                let mut res = Self::from_error(*error);
+                res.context.get_or_insert_with(Vec::new).push(context);
+                res
+            }
+            Error::Specified(e) => {
+                return RespError {
+                    err: e.text().to_string(),
+                    context: None,
+                }
+            }
+            Error::External(e) => {
+                return RespError {
+                    err: format!("{}", e),
+                    context: None,
+                }
+            }
+            Error::String(err) => return RespError { err, context: None },
         }
+    }
+}
 
-        error!("{:?}", self.0);
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let root = self.root();
+        let status = match *root {
+            Error::Specified(x) => x.status_code(),
+            _ => {
+                error!("{self}");
 
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SerApiError::Error {
-                error: "Something went wrong internally".to_string(),
-            }),
-        )
-            .into_response();
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        };
+
+        let resp_error = RespError::from_error(self);
+
+        (status, Json(resp_error)).into_response()
     }
 }
