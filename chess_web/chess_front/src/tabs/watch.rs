@@ -33,9 +33,9 @@ pub fn view(model: &Model) -> Node<Msg> {
         .map_or(true, |s| matches!(s.state(), web_socket::State::Connecting));
 
     div![
-        C!["w-full bg-red-100 flex"],
+        C!["w-full  flex"],
         div![
-            C!["w-2/3 lg:w-1/3"],
+            C!["w-2/3 lg:w-1/3 p-2"],
             board::view(&model.board, "w-full shadow").map_msg(|_| Msg::Board)
         ],
         div![

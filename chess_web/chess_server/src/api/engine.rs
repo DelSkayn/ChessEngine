@@ -146,7 +146,13 @@ pub async fn create(
 
     tokio::fs::copy(file.path(), &engine_path)
         .await
-        .context("moving engine executable")?;
+        .with_context(|| {
+            format!(
+                "moving engine executable `{}` to `{}`",
+                file.path().display(),
+                engine_path.display()
+            )
+        })?;
 
     let engine_path = tokio::fs::canonicalize(&engine_path)
         .await
@@ -173,4 +179,23 @@ pub async fn create(
     .await?;
 
     Ok(Json(CreateEngineRes::Ok { id }))
+}
+
+#[derive(Serialize)]
+pub struct EngineGetRes {
+    name: String,
+    description: Option<String>,
+    games_played: i32,
+    elo: f64,
+}
+
+pub async fn get(Extension(ext): Extension<Context>) -> Result<Json<Vec<EngineGetRes>>, Error> {
+    let res = sqlx::query_as!(
+        EngineGetRes,
+        r#"select name,description,games_played,elo from "engine" "#,
+    )
+    .fetch_all(&ext.db)
+    .await?;
+
+    Ok(Json(res))
 }

@@ -53,13 +53,13 @@ pub struct Model {
     //create_user: create_user::Model,
 }
 
-fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
+fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
     Model {
         global: Global { user_token: None },
         topbar: top_bar::Model::new(),
         tab_watch: watch::Model::new(),
-        tab_engine: engine::Model::new(),
-        active_tab: Tab::Watch,
+        tab_engine: engine::Model::new(&mut orders.proxy(Msg::Engine)),
+        active_tab: Tab::Engines,
         //login: login::Model::new(),
         //engine: engine::Model::new(),
         //create_user: create_user::Model::new(),
@@ -97,8 +97,8 @@ pub fn view(model: &Model) -> Node<Msg> {
     let menu_button = |text: &str, active: bool, tab: Tab| {
         div![
             ev(Ev::Click,move |_| Msg::SwitchTab(tab)),
-            C!["font-bold text-gray-600 px-4 h-full flex items-center hover:bg-gray-300 cursor-pointer"],
-            IF!(active => C!["text-green-600"]),
+            C!["font-bold text-gray-200 px-4 h-full flex items-center hover:bg-gray-800 cursor-pointer"],
+            IF!(active => C!["text-green-500"]),
             p![text],
         ]
     };
@@ -114,7 +114,7 @@ pub fn view(model: &Model) -> Node<Msg> {
         div![
             C!["mt-16 container flex flex-col"],
             div![
-                C!["h-10 bg-gray-200 rounded-t shadow flex items-center overflow-hidden select-none"],
+                C!["h-10 bg-gray-600 rounded-t shadow flex items-center overflow-hidden select-none"],
                 menu_button("Watch", model.active_tab == Tab::Watch, Tab::Watch),
                 menu_button("Engines", model.active_tab == Tab::Engines, Tab::Engines),
                 menu_button("Games", model.active_tab == Tab::Games, Tab::Games),
