@@ -1,16 +1,17 @@
 [workspace]
 members = [
-    "chess_ui",
-    "chess_core",
-    "chess_mcts",
-    "chess_alpha_beta",
-    "chess_alpha_beta_2",
-    "chess_alpha_beta_back",
-    "chess_bot",
-    "chess_uci",
-    "chess_web/chess_front",
-    "chess_web/chess_server",
-    "find_magic",
+#    "ui",
+    "core",
+    "engines/alpha_beta",
+    "engines/mcts",
+    #"engines/alpha_beta_2",
+    #"engines/alpha_beta_back",
+    "engines/random",
+    "bot",
+    "web/front",
+    "web/server",
+    "web/common",
+    "utils/find_magic",
 ]
 
 [profile.release]

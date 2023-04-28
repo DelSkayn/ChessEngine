@@ -13,7 +13,7 @@ use chess_core::{
     board::{Board, EndChain},
     engine::{Engine, EngineLimit, EngineThread, Info, OptionKind, Response, ThreadController},
     gen::{gen_type, MoveGenerator},
-    Move, Player, Square,
+    Move, Player, Promotion, Square,
 };
 use crossbeam_channel::select;
 
@@ -24,19 +24,18 @@ impl fmt::Display for UciMove {
         write!(f, "{}{}", self.0.from(), self.0.to())?;
         if self.0.ty() == Move::TYPE_PROMOTION {
             match self.0.promotion_piece() {
-                Move::PROMOTION_QUEEN => {
+                Promotion::Queen => {
                     write!(f, "q")?;
                 }
-                Move::PROMOTION_ROOK => {
+                Promotion::Rook => {
                     write!(f, "r")?;
                 }
-                Move::PROMOTION_BISHOP => {
+                Promotion::Bishop => {
                     write!(f, "b")?;
                 }
-                Move::PROMOTION_KNIGHT => {
+                Promotion::Knight => {
                     write!(f, "n")?;
                 }
-                _ => unreachable!(),
             }
         }
         Ok(())

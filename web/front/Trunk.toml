@@ -1,0 +1,18 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[[hooks]]
+stage = "build"
+command = "sh"
+command_arguments = ["-c", "pnpm tailwindcss -i src/tailwind.css -o $TRUNK_STAGING_DIR/tailwind.css"]
+
+[[proxy]]
+rewrite = "/api/v1"
+backend = "http://localhost:3000/api/v1"
+ws = false 
+
+[[proxy]]
+rewrite = "/api/ws"
+backend = "ws://localhost:3000/api/v1/game/subscribe"
+ws = true
