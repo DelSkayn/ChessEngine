@@ -6,6 +6,11 @@ use axum_macros::FromRef;
 use base64::engine::fast_portable::FastPortable;
 use engine::colosseum::Colosseum;
 use sqlx::postgres::Postgres;
+use surrealdb::{
+    engine::remote::ws::{Client, Ws},
+    opt::auth::Root,
+    Surreal,
+};
 use tower_http::services::ServeDir;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -26,21 +31,20 @@ pub static BASE64_ENGINE: FastPortable = FastPortable::from(
     base64::engine::fast_portable::PAD,
 );
 
-type Db = Postgres;
-type Pool = sqlx::Pool<Db>;
+type Db = Surreal<Client>;
 
 #[derive(Clone)]
 pub struct Secret(pub String);
 
 #[derive(Clone, FromRef)]
 pub struct ServerState {
-    pub db: Pool,
+    pub db: Db,
     pub secret: Secret,
     pub colosseum: Arc<Colosseum>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
 
     tracing_subscriber::registry()
@@ -49,11 +53,15 @@ async fn main() {
         .init();
 
     let connect_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-    let db: Pool = sqlx::Pool::connect(&connect_url).await.unwrap();
+    let db = Surreal::new::<Ws>(connect_url).await?;
 
-    sqlx::migrate!().run(&db).await.unwrap();
+    db.signin(Root {
+        username: "root",
+        password: "root",
+    })
+    .await?;
 
-    //session::init_clean(db.clone());
+    db.use_ns("chess").use_db("chess").await?;
 
     let state = ServerState {
         db,
@@ -80,6 +88,7 @@ async fn main() {
             info!("quiting!")
         }
     }
+    Ok(())
 }
 
 async fn handle_static_error(e: io::Error) -> impl IntoResponse {

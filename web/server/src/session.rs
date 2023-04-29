@@ -7,14 +7,16 @@ use axum::{
     http::request::Parts,
 };
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sqlx::types::{time::OffsetDateTime, Uuid};
+use surrealdb::sql::{Datetime, Thing};
 
 type Hmacs = Hmac<Sha256>;
 
 use crate::{
     error::{Error, ErrorContext, ErrorKind},
-    Pool, ServerState,
+    Db, Pool, ServerState,
 };
 
 pub struct UserSession(pub i32);
@@ -52,7 +54,8 @@ impl FromRequestParts<ServerState> for AdminSession {
     }
 }
 
-pub fn init_clean(db: Pool) {
+/*
+pub fn init_clean(db: Db) {
     tokio::spawn(async move {
         loop {
             sqlx::query!(r#"delete from "session" where timestamp < now() - '1 day'::interval"#)
@@ -64,30 +67,54 @@ pub fn init_clean(db: Pool) {
         }
     });
 }
+*/
 
-pub async fn create(user_id: i32, ctx: &ServerState) -> Result<String, Error> {
-    let id = sqlx::query_scalar!(
-        r#"select session_id from "session" where user_id=$1"#,
-        user_id
-    )
-    .fetch_optional(&ctx.db)
-    .await?;
+#[derive(Debug, Serialize)]
+pub struct Session {
+    stamp: Datetime,
+    user: Thing,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionUpdate {
+    stamp: Datetime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Record {
+    id: Thing,
+}
+
+pub async fn create(user: Thing, ctx: &ServerState) -> Result<String, Error> {
+    let id = ctx
+        .db
+        .query("SELECT id FROM session WHERE user=$id")
+        .bind(("id", user))
+        .await?;
+
+    let id = id.take::<Option<Record>>(0)?.map(|x| id);
 
     let id = if let Some(id) = id {
-        sqlx::query!(
-            r#"update "session" set timestamp = now() where session_id = $1"#,
-            id
-        )
-        .execute(&ctx.db)
-        .await?;
+        let time = std::time::SystemTime::now();
+        ctx.db
+            .update("session")
+            .merge(SessionUpdate {
+                stamp: Datetime::default(),
+            })
+            .await?;
+
         id
     } else {
-        sqlx::query_scalar!(
-            r#"insert into "session"(user_id) values ($1) returning session_id"#,
-            user_id
-        )
-        .fetch_one(&ctx.db)
-        .await?
+        let res: Record = ctx
+            .db
+            .create("session")
+            .content(Session {
+                stamp: Datetime::default(),
+                user,
+            })
+            .await?;
+
+        res.id
     };
 
     let mut mac = Hmacs::new_from_slice(ctx.secret.0.as_bytes()).expect("could not create hmac");
