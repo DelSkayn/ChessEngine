@@ -103,7 +103,7 @@ impl<C: EngineControl> AlphaBeta<C> {
             let mut line = Line::new();
 
             loop {
-                let mut buffer = moves.clone();
+                let mut buffer = moves;
 
                 let pref_upper = upper;
 
@@ -161,7 +161,7 @@ impl<C: EngineControl> AlphaBeta<C> {
             }
 
             lower = upper + eval::PAWN_VALUE / 4;
-            upper = upper - eval::PAWN_VALUE / 4;
+            upper -= eval::PAWN_VALUE / 4;
             hit_bound = false;
 
             self.depth += 1;
@@ -269,7 +269,7 @@ impl<C: EngineControl> AlphaBeta<C> {
             r#move: best_move,
             score,
         });
-        return value;
+        value
     }
 
     fn quiesce(&mut self, lower: i32, mut upper: i32, color: i32) -> i32 {

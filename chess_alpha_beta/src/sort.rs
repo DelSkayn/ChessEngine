@@ -65,7 +65,7 @@ impl<'a, const SIZE: usize> MoveSorter<'a, SIZE> {
             self.sort_count += if sorted { Self::LIMIT_SORT } else { 1 };
         }
 
-        return self.moves.pop();
+        self.moves.pop()
     }
 
     fn score_move(&self, m: Move, board: &Board) -> i32 {

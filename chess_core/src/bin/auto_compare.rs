@@ -45,7 +45,7 @@ impl StockFish {
             buffer.clear();
             self.sout.read_line(&mut buffer)?;
             print!("{}", buffer);
-            if buffer.find("Checkers").is_some() {
+            if buffer.contains("Checkers") {
                 break;
             }
         }

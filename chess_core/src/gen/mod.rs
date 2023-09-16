@@ -26,16 +26,7 @@ pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
 
 impl<const SIZE: usize, T: Copy> Clone for InlineBuffer<SIZE, T> {
     fn clone(&self) -> Self {
-        let mut res = InlineBuffer::<SIZE, T>::new();
-        unsafe {
-            ptr::copy_nonoverlapping(
-                self.moves.as_ptr(),
-                res.moves.as_mut_ptr(),
-                self.len as usize,
-            )
-        };
-        res.len = self.len;
-        res
+        *self
     }
 }
 

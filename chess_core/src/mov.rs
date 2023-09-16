@@ -50,7 +50,7 @@ impl Move {
 
     #[inline]
     pub fn promotion(from: Square, to: Square, promotion: u16) -> Self {
-        debug_assert!(promotion >= Self::PROMOTION_QUEEN && promotion <= Self::PROMOTION_BISHOP);
+        debug_assert!((Self::PROMOTION_QUEEN..=Self::PROMOTION_BISHOP).contains(&promotion));
         Self(from.get() as u16 | (to.get() as u16) << 6 | Self::TYPE_PROMOTION | promotion)
     }
 

@@ -4,7 +4,7 @@ use chess_core::{
     gen::{gen_type, MoveGenerator},
     Move, Square,
 };
-use ggez::event::{KeyCode, MouseButton};
+use ggez::{event::MouseButton, input::keyboard::KeyCode};
 
 mod eval;
 pub use eval::ThreadedEval;

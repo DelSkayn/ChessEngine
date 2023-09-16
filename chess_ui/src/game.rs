@@ -1,8 +1,9 @@
 use chess_core::{board::Board, hash::Hasher, Player as PlayerColor};
 use ggez::{
     audio::{SoundSource, Source},
-    event::{EventHandler, KeyCode, KeyMods, MouseButton},
-    graphics::{self, Color, Image, Rect},
+    event::{EventHandler, MouseButton},
+    graphics::{self, Canvas, Color, Image, Rect},
+    input::keyboard::KeyInput,
     Context, GameResult,
 };
 
@@ -23,6 +24,7 @@ pub struct Chess {
     play_move: PlayedMove,
     white: Box<dyn Player>,
     black: Box<dyn Player>,
+    resized: Option<Rect>,
 }
 
 impl Chess {
@@ -39,13 +41,14 @@ impl Chess {
             PlayerColor::Black => black.start_turn(&board),
         }
         Chess {
-            piece_sprite: Image::new(ctx, "/pieces.png").unwrap(),
+            piece_sprite: Image::from_path(ctx, "/pieces.png").unwrap(),
             castle_sound: Source::new(ctx, "/castle.ogg").unwrap(),
             move_sound: Source::new(ctx, "/move.ogg").unwrap(),
             play_move: PlayedMove::Didnt,
             white,
             board,
             black,
+            resized: None,
         }
     }
 
@@ -101,30 +104,45 @@ impl EventHandler for Chess {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx, Color::from_rgb_u32(0x282828));
+        let mut canvas = Canvas::from_frame(ctx, Color::BLACK);
+        if let Some(x) = self.resized.take() {
+            canvas.set_screen_coordinates(x);
+        }
+        let Some(coords) = canvas.screen_coordinates() else {
+            canvas.finish(ctx)?;
+            return Ok(());
+        };
+        self.board
+            .draw(ctx, &mut canvas, coords, &self.piece_sprite)?;
 
-        let coords = graphics::screen_coordinates(&ctx);
-        self.board.draw(ctx, coords, &self.piece_sprite)?;
-
-        // Draw code here...
-        graphics::present(ctx)
+        canvas.finish(ctx)?;
+        Ok(())
     }
 
     fn key_down_event(
         &mut self,
         _ctx: &mut Context,
-        keycode: KeyCode,
-        _keymods: KeyMods,
+        _input: KeyInput,
         _repeat: bool,
-    ) {
+    ) -> GameResult<()> {
+        let Some(keycode) = _input.keycode else {
+            return Ok(());
+        };
         if self.white_turn() {
             self.white.key_down(&mut self.board, keycode);
         } else {
             self.black.key_down(&mut self.board, keycode);
         }
+        Ok(())
     }
 
-    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+    fn mouse_button_down_event(
+        &mut self,
+        _ctx: &mut Context,
+        button: MouseButton,
+        x: f32,
+        y: f32,
+    ) -> GameResult<()> {
         if self.white_turn() {
             self.white
                 .mouse_button_down_event(button, x, y, &mut self.board);
@@ -132,9 +150,16 @@ impl EventHandler for Chess {
             self.black
                 .mouse_button_down_event(button, x, y, &mut self.board);
         }
+        Ok(())
     }
 
-    fn mouse_button_up_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) {
+    fn mouse_button_up_event(
+        &mut self,
+        _ctx: &mut Context,
+        button: MouseButton,
+        x: f32,
+        y: f32,
+    ) -> GameResult<()> {
         self.play_move = if self.white_turn() {
             self.white
                 .mouse_button_up_event(button, x, y, &mut self.board)
@@ -151,27 +176,33 @@ impl EventHandler for Chess {
                 self.black.start_turn(&self.board);
             }
         }
+        Ok(())
     }
 
-    fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, dx: f32, dy: f32) {
+    fn mouse_motion_event(
+        &mut self,
+        _ctx: &mut Context,
+        x: f32,
+        y: f32,
+        dx: f32,
+        dy: f32,
+    ) -> GameResult<()> {
         if self.white_turn() {
             self.white.mouse_motion_event(x, y, dx, dy, &mut self.board);
         } else {
             self.black.mouse_motion_event(x, y, dx, dy, &mut self.board);
         }
+        Ok(())
     }
 
-    fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {
-        graphics::set_screen_coordinates(
-            ctx,
-            Rect {
-                x: 0.0,
-                y: 0.0,
-                w: width,
-                h: height,
-            },
-        )
-        .unwrap();
+    fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) -> GameResult<()> {
+        self.resized = Some(Rect {
+            x: 0.0,
+            y: 0.0,
+            w: width,
+            h: height,
+        });
         println!("resized!: {}, {}", width, height);
+        Ok(())
     }
 }

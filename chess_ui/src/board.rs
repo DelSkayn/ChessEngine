@@ -6,7 +6,7 @@ use chess_core::{
     Move, Piece, Square,
 };
 use ggez::{
-    graphics::{self, Color, DrawMode, DrawParam, Image, Mesh, Rect, Text},
+    graphics::{self, Canvas, Color, DrawMode, DrawParam, Drawable, Image, Mesh, Rect, Text},
     input,
     mint::Point2,
     mint::Vector2,
@@ -38,7 +38,13 @@ impl RenderBoard {
         }
     }
 
-    pub fn draw(&mut self, ctx: &mut Context, within: Rect, sprite: &Image) -> GameResult<()> {
+    pub fn draw(
+        &mut self,
+        ctx: &mut Context,
+        canvas: &mut Canvas,
+        within: Rect,
+        sprite: &Image,
+    ) -> GameResult<()> {
         let max_size = within.w.min(within.h);
         let offset_x = (within.w - max_size).max(0.0) / 2.0;
         let offset_y = (within.h - max_size).max(0.0) / 2.0;
@@ -63,7 +69,7 @@ impl RenderBoard {
                 };
 
                 let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-                graphics::draw(ctx, &rect, DrawParam::new())?;
+                canvas.draw(&rect, DrawParam::new());
 
                 if self
                     .possible_moves
@@ -81,7 +87,7 @@ impl RenderBoard {
                         0.1,
                         color,
                     )?;
-                    graphics::draw(ctx, &circle, DrawParam::new())?;
+                    canvas.draw(&circle, DrawParam::new());
                 }
             }
         }
@@ -90,7 +96,7 @@ impl RenderBoard {
         let letter_offset_y = offset_y + square_size - (square_size / 6.0) - (square_size / 32.0);
         for i in 0..8 {
             let mut text = Text::new(('A' as u8 + i) as char);
-            text.set_font(Default::default(), (square_size / 6.0).into());
+            text.set_scale(square_size / 6.0);
             let x = letter_offset_x + square_size * i as f32;
             let y = letter_offset_y + square_size * 7 as f32;
             let color = if (i) % 2 == 0 {
@@ -98,14 +104,14 @@ impl RenderBoard {
             } else {
                 color_black()
             };
-            graphics::draw(ctx, &text, ([x, y], color))?;
+            canvas.draw(&text, DrawParam::new().dest([x, y]).color(color));
         }
 
         let letter_offset_x = offset_x + (square_size / 16.0);
         let letter_offset_y = offset_y + (square_size / 16.0);
         for i in 0..8 {
             let mut text = Text::new(('8' as u8 - i) as char);
-            text.set_font(Default::default(), (square_size / 6.0).into());
+            text.set_scale(square_size / 6.0);
             let x = letter_offset_x;
             let y = letter_offset_y + square_size * i as f32;
             let color = if (i) % 2 == 1 {
@@ -113,7 +119,7 @@ impl RenderBoard {
             } else {
                 color_black()
             };
-            graphics::draw(ctx, &text, ([x, y], color))?;
+            canvas.draw(&text, DrawParam::new().dest([x, y]).color(color));
         }
 
         // Draw previous move
@@ -130,7 +136,7 @@ impl RenderBoard {
             };
 
             let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-            graphics::draw(ctx, &rect, DrawParam::new())?;
+            graphics::draw(canvas, &rect, DrawParam::new());
 
             let x = offset_x + square_size * to.file() as f32;
             let y = offset_y + square_size * (7 - to.rank()) as f32;
@@ -143,7 +149,7 @@ impl RenderBoard {
             };
 
             let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-            graphics::draw(ctx, &rect, DrawParam::new())?;
+            graphics::draw(canvas, &rect, DrawParam::new());
         }
 
         if let Some(s) = self.selected {
@@ -159,7 +165,7 @@ impl RenderBoard {
             };
 
             let rect = Mesh::new_rectangle(ctx, DrawMode::fill(), rect, color)?;
-            graphics::draw(ctx, &rect, DrawParam::new())?;
+            graphics::draw(canvas, &rect, DrawParam::new());
         }
 
         // Draw all pieces except one that is dragged
@@ -170,13 +176,13 @@ impl RenderBoard {
         };
 
         for piece in 0..12 {
-            let param = piece_to_param(piece, [square_size, square_size], &sprite);
+            let param = piece_to_param(piece, [square_size, square_size], &sprite, ctx);
             for p in (self.board.pieces[Piece::from_u8(piece)] & !exclude).iter() {
                 let i = p.file();
                 let j = 7 - p.rank();
                 let x = offset_x + square_size * i as f32;
                 let y = offset_y + square_size * j as f32;
-                graphics::draw(ctx, sprite, param.dest([x, y]))?;
+                canvas.draw(sprite, param.dest([x, y]));
             }
         }
 
@@ -186,10 +192,11 @@ impl RenderBoard {
                 self.on(x).unwrap() as u8,
                 [square_size, square_size],
                 &sprite,
+                ctx,
             );
-            let pos = input::mouse::position(&ctx);
+            let pos = ctx.mouse.position();
             let pos = [pos.x - square_size / 2.0, pos.y - square_size / 2.0];
-            graphics::draw(ctx, sprite, param.dest(pos))?;
+            canvas.draw(sprite, param.dest(pos));
         }
 
         self.rect = Rect {
@@ -294,8 +301,13 @@ fn color_white() -> Color {
     Color::from_rgb(0xbd, 0xae, 0x93)
 }
 
-fn piece_to_param(piece: u8, scale: impl Into<Vector2<f32>>, sprite: &Image) -> DrawParam {
-    let piece_size = sprite.dimensions();
+fn piece_to_param(
+    piece: u8,
+    scale: impl Into<Vector2<f32>>,
+    sprite: &Image,
+    context: &mut Context,
+) -> DrawParam {
+    let piece_size = sprite.dimensions(context).unwrap();
     let piece_size = piece_size.w.max(piece_size.h) / 6.0;
 
     let scale = scale.into();

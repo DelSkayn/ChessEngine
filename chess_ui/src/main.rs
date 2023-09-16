@@ -1,6 +1,5 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
-
+#[allow(unused_imports)]
 use chess_alpha_beta::AlphaBeta;
 use chess_core::{
     board::{Board, EndChain},
@@ -63,7 +62,8 @@ fn main() {
         return;
     }
 
-    let white = Box::new(MousePlayer::new());
+    //let white = Box::new(MousePlayer::new());
+    let white = Box::new(ThreadedEval::new(2.0, chess_alpha_beta::AlphaBeta::new()));
     let black: Box<dyn Player> = if args.self_play {
         Box::new(MousePlayer::new())
     } else {
@@ -73,12 +73,11 @@ fn main() {
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Mees Delzenne")
         .add_resource_path(resource_dir)
-        .window_mode(WindowMode::default().resizable(true))
+        .window_mode(WindowMode::default().resizable(true).visible(true))
         .window_setup(WindowSetup::default().title("devapp chess"))
         .build()
         .expect("aieee, could not create ggez context!");
 
-    println!("{}", graphics::renderer_info(&mut ctx).unwrap());
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.

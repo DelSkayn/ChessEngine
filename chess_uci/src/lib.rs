@@ -64,7 +64,7 @@ impl UciMove {
                 Some(Move::PROMOTION_ROOK)
             } else if prom == 'b' {
                 Some(Move::PROMOTION_BISHOP)
-            } else if prom == 'b' {
+            } else if prom == 'k' {
                 Some(Move::PROMOTION_KNIGHT)
             } else {
                 return None;
