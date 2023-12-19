@@ -46,7 +46,7 @@ async fn attemp_login(
 ) {
     info!("trying to login");
     let data = LoginReq {
-        username: &*username.get(),
+        username: &username.get(),
         password: &password.get(),
     };
 

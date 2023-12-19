@@ -20,8 +20,8 @@ mod bot;
 mod events;
 mod game;
 
-const SCHEME: &'static str = "https";
-const AUTHORITY: &'static str = "lichess.org";
+const SCHEME: &str = "https";
+const AUTHORITY: &str = "lichess.org";
 
 async fn handle_failed_response(resp: Response<Body>) -> Result<()> {
     if !resp.status().is_success() {
@@ -66,13 +66,11 @@ async fn main() -> Result<()> {
                 if accepting_game || active_game.is_some() {
                     bot.decline_challenge(&challenge, DeclineReason::Later)
                         .await?;
+                } else if let Some(reason) = bot.should_decline(&challenge) {
+                    bot.decline_challenge(&challenge, reason).await?;
                 } else {
-                    if let Some(reason) = bot.should_decline(&challenge) {
-                        bot.decline_challenge(&challenge, reason).await?;
-                    } else {
-                        bot.accept_challenge(&challenge).await?;
-                        accepting_game = true;
-                    }
+                    bot.accept_challenge(&challenge).await?;
+                    accepting_game = true;
                 }
             }
             events::Event::GameStart { game } => {

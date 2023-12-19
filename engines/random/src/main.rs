@@ -37,7 +37,7 @@ impl Engine for RandomEngine {
         let mut moves = Vec::new();
         self.gen
             .gen_moves::<gen_type::All, _, _>(&self.board, &mut moves);
-        if moves.len() > 0 {
+        if !moves.is_empty() {
             let idx = rand::thread_rng().gen_range(0..moves.len());
             let m = moves[idx];
             SearchResult {

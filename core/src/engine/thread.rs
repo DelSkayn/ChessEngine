@@ -75,7 +75,7 @@ impl EngineThread {
 
         let controller_move = controller.clone();
         std::thread::spawn(move || {
-            while let Some(x) = cmd_recv.recv().ok() {
+            while let Ok(x) = cmd_recv.recv() {
                 match x {
                     Cmd::SetBoard(b) => {
                         engine.set_board(b);

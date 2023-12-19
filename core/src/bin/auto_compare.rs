@@ -45,7 +45,7 @@ impl StockFish {
             buffer.clear();
             self.sout.read_line(&mut buffer)?;
             print!("{}", buffer);
-            if buffer.find("Checkers").is_some() {
+            if buffer.contains("Checkers") {
                 break;
             }
         }
@@ -60,7 +60,7 @@ impl StockFish {
         loop {
             buffer.clear();
             self.sout.read_line(&mut buffer)?;
-            if let Some(x) = buffer.find(":") {
+            if let Some(x) = buffer.find(':') {
                 let (first, rest) = buffer.split_at(x);
                 let rest = &rest[1..];
                 if first == "Nodes searched" {

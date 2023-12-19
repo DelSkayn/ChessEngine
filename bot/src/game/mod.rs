@@ -147,7 +147,6 @@ impl Game {
         .await
         .map_err(|e| {
             error!("Could not send message: `{:?}`", e);
-            ()
         })
         .ok();
     }
@@ -165,7 +164,7 @@ impl Game {
     ) {
         async {
             for text in texts.iter() {
-                Game::send_message_game(&client, &game_id, &token, text, ChatRoom::Player).await;
+                Game::send_message_game(client, game_id, token, text, ChatRoom::Player).await;
             }
 
             tokio::time::sleep(Duration::from_secs(1)).await;

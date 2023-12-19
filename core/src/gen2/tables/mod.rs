@@ -69,6 +69,12 @@ impl Tables {
     }
 }
 
+impl Default for Tables {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn knight_attacks_init() {
     let mut res = BoardArray::new(BB::empty());
     for i in 0..64 {
@@ -144,7 +150,7 @@ fn lines_init() {
                     let rank = irank as i8 + rank_step * k;
                     let file = ifile as i8 + file_step * k;
 
-                    if rank >= 0 && rank < 8 && file >= 0 && file < 8 {
+                    if (0..8).contains(&rank) && (0..8).contains(&file) {
                         let sq = Square::from_file_rank(file as u8, rank as u8);
                         res[i][j] |= BB::square(sq);
                     }
@@ -152,7 +158,7 @@ fn lines_init() {
                     let rank = irank as i8 - rank_step * k;
                     let file = ifile as i8 - file_step * k;
 
-                    if rank >= 0 && rank < 8 && file >= 0 && file < 8 {
+                    if (0..8).contains(&rank) && (0..8).contains(&file) {
                         let sq = Square::from_file_rank(file as u8, rank as u8);
                         res[i][j] |= BB::square(sq);
                     }
@@ -199,7 +205,7 @@ fn between_init() {
             if (rank_first as i8 - rank_sec as i8).abs()
                 == (file_first as i8 - file_sec as i8).abs()
             {
-                let len = (rank_first as i8 - rank_sec as i8).abs() as u8;
+                let len = (rank_first as i8 - rank_sec as i8).unsigned_abs();
                 let rank_step = (rank_sec as i8 - rank_first as i8).signum();
                 let file_step = (file_sec as i8 - file_first as i8).signum();
 

@@ -3,8 +3,8 @@ use std::{
     fmt::{self, Debug},
     iter::{IntoIterator, Iterator},
     ops::{
-        BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
-        ShrAssign,
+        self, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign,
+        Shr, ShrAssign,
     },
 };
 
@@ -170,13 +170,23 @@ impl BB {
     }
 
     #[inline]
-    pub fn sub(self, other: Self) -> Self {
-        BB(self.0.wrapping_sub(other.0))
-    }
-
-    #[inline]
     pub fn get(self) -> u64 {
         self.0
+    }
+}
+
+impl ops::Sub for BB {
+    type Output = BB;
+
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        BB(self.0.wrapping_sub(rhs.0))
+    }
+}
+
+impl ops::SubAssign for BB {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 = self.0.wrapping_sub(rhs.0);
     }
 }
 
@@ -187,7 +197,7 @@ impl Debug for BB {
         for j in (0..8).rev() {
             write!(f, "{}: |", j + 1)?;
             for i in 0..8 {
-                if *self & (1u64 << j * 8 + i) != BB::empty() {
+                if *self & (1u64 << (j * 8 + i)) != BB::empty() {
                     write!(f, "##")?;
                     //write!(f, "\x1b[97;107m. \x1b[0m")?;
                 } else {

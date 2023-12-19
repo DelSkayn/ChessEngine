@@ -4,9 +4,8 @@ use anyhow::{anyhow, bail, ensure, Result};
 
 use thiserror::Error;
 
-
 #[derive(Error, Debug)]
-pub enum FenError{
+pub enum FenError {
     #[error("expected new row but found more squares")]
     ExpectedNewRow,
     #[error("defined too many rows")]
@@ -18,10 +17,7 @@ pub enum FenError{
     #[error("found invalid character `{0}`")]
     InvalidCharacter(char),
     #[error("found invalid character `{found}` expected {expected}")]
-    InvalidExpected{
-        found: char,
-        expected: &'static str
-    },
+    InvalidExpected { found: char, expected: &'static str },
     #[error("expected more characters but fen string ended, missing {0}")]
     EndedTooEarly(&'static str),
     #[error("Castling characters where not in the correct order")]
@@ -33,7 +29,6 @@ pub enum FenError{
     #[error("invalid enpassant square")]
     InvalidEnpassant,
 }
-
 
 impl<C: MoveChain> Board<C> {
     /// Create a board position from a fen string.
@@ -95,7 +90,7 @@ impl<C: MoveChain> Board<C> {
                 column <= 7,
                 "notation tried to place piece outside the board"
             );
-            board.pieces[bitmap] |= 1 << (7 - row) * 8 + column;
+            board.pieces[bitmap] |= 1 << ((7 - row) * 8 + column);
             column += 1;
         }
 
@@ -208,18 +203,18 @@ impl<C: MoveChain> Board<C> {
     }
 
     fn postion_to_square(column: char, row: char) -> Option<Square> {
-        if 'a' > column || 'h' < column {
+        if !('a'..='h').contains(&column) {
             return None;
         }
 
-        if '1' > row || '8' < row {
+        if !('1'..='8').contains(&row) {
             return None;
         }
 
         let row = row as u8 - b'1';
         let column = column as u8 - b'a';
 
-        return Some(Square::new(row * 8 + column));
+        Some(Square::new(row * 8 + column))
     }
 
     /// Returns the fen string of the board

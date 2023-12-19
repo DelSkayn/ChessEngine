@@ -31,9 +31,7 @@ impl Hasher {
                 }
             }
             let mut castle = [0; 16];
-            for i in 0..16 {
-                castle[i] = random.gen();
-            }
+            castle.fill_with(|| random.gen());
             let black = random.gen();
 
             unsafe {
@@ -75,5 +73,11 @@ impl Hasher {
         }
 
         res
+    }
+}
+
+impl Default for Hasher {
+    fn default() -> Self {
+        Self::new()
     }
 }

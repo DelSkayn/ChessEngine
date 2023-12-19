@@ -1,27 +1,20 @@
-use std::{mem::MaybeUninit, ptr};
+use std::mem::MaybeUninit;
 
 use crate::{gen2::MoveList, Move};
+
+const MAX_MOVES: usize = 218;
 
 /// A constant size buffer stored on the stack,
 /// Can be used for storing moves without allocation.
 #[derive(Copy)]
-pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
+pub struct InlineBuffer<const SIZE: usize = MAX_MOVES, T: Copy = Move> {
     moves: [MaybeUninit<T>; SIZE],
     len: u16,
 }
 
 impl<const SIZE: usize, T: Copy> Clone for InlineBuffer<SIZE, T> {
     fn clone(&self) -> Self {
-        let mut res = InlineBuffer::<SIZE, T>::new();
-        unsafe {
-            ptr::copy_nonoverlapping(
-                self.moves.as_ptr(),
-                res.moves.as_mut_ptr(),
-                self.len as usize,
-            )
-        };
-        res.len = self.len;
-        res
+        *self
     }
 }
 
@@ -66,16 +59,30 @@ impl<const SIZE: usize, T: Copy> InlineBuffer<SIZE, T> {
         }
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.len as usize
     }
+
+    #[inline]
     pub fn truncate(&mut self, len: usize) {
         assert!(len <= self.len as usize);
         self.len = len as u16;
     }
 
+    #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
         self.moves.swap(a, b);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl<const SIZE: usize, T: Copy> Default for InlineBuffer<SIZE, T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -120,9 +120,8 @@ impl<C: EngineControl> Engine<C> for Eval<C> {
     }
 
     fn set_option(&mut self, name: String, value: OptionValue) {
-        match (name.as_str(), value) {
-            ("Hash", OptionValue::Spin(x)) => self.hashmap = HashMap::new_from_mb(x as usize),
-            _ => {}
+        if let ("Hash", OptionValue::Spin(x)) = (name.as_str(), value) {
+            self.hashmap = HashMap::new_from_mb(x as usize)
         }
     }
 
@@ -134,8 +133,7 @@ impl<C: EngineControl> Engine<C> for Eval<C> {
 
         let mut moves = InlineBuffer::<128>::new();
         let mut b = self.board.clone();
-        self.gen
-            .gen_moves::<gen_type::All, _, _>(&mut b, &mut moves);
+        self.gen.gen_moves::<gen_type::All, _, _>(&b, &mut moves);
         self.nodes_evaluated = 0;
         self.table_hits = 0;
         self.cut_offs = 0;
@@ -313,5 +311,11 @@ impl<C: EngineControl> Eval<C> {
             control: C::default(),
             limits: EngineLimit::none(),
         }
+    }
+}
+
+impl<C: EngineControl> Default for Eval<C> {
+    fn default() -> Self {
+        Self::new()
     }
 }

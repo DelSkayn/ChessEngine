@@ -47,7 +47,7 @@ impl<const DEPTH: usize> PvBuffer<DEPTH> {
     pub fn write_line_from_lower(&mut self, depth: usize, m: Move) {
         assert!(depth < DEPTH - 1);
         self.pv[depth][0].write(m);
-        let next_depth = (depth + 1) as usize;
+        let next_depth = depth + 1;
         let len = self.len[next_depth];
         unsafe {
             let src = self.pv[next_depth].as_ptr();
@@ -55,6 +55,12 @@ impl<const DEPTH: usize> PvBuffer<DEPTH> {
             std::ptr::copy_nonoverlapping(src as *const Move, dst as *mut Move, len.into());
         }
         self.len[depth] = len + 1;
+    }
+}
+
+impl<const DEPTH: usize> Default for PvBuffer<DEPTH> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -161,7 +167,7 @@ impl AlphaBeta {
             }
         }
 
-        return Some(best_move);
+        Some(best_move)
     }
 
     // Alpha is lowerbound
@@ -211,9 +217,9 @@ impl AlphaBeta {
 
             let undo = self.board.make_move(m);
             // score is low if the move for the next player is high and vice versa.
-            let score = -self.alpha_beta(-beta, -alpha, depth + 1, color * -1, &info);
+            let score = -self.alpha_beta(-beta, -alpha, depth + 1, -color, info);
             if old_beta != beta && score >= beta && idx != 0 && depth < info.max_depth - 1 {
-                alpha = -self.alpha_beta(-old_beta, -alpha, depth + 1, color * -1, &info);
+                alpha = -self.alpha_beta(-old_beta, -alpha, depth + 1, -color, info);
                 self.pv.write_line_from_lower(depth as usize, m);
             }
 
@@ -230,7 +236,7 @@ impl AlphaBeta {
             beta = alpha + 1;
         }
 
-        return alpha;
+        alpha
     }
 
     pub fn quicense(&mut self, mut alpha: i32, beta: i32, color: i32) -> i32 {
@@ -263,6 +269,6 @@ impl AlphaBeta {
             alpha = alpha.max(score);
         }
 
-        return alpha;
+        alpha
     }
 }

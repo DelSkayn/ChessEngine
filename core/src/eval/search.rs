@@ -92,7 +92,7 @@ impl<C: EngineControl> Eval<C> {
             })
         }
 
-        return alpha;
+        alpha
     }
 
     pub fn alpha_beta_min(
@@ -176,7 +176,7 @@ impl<C: EngineControl> Eval<C> {
             })
         }
 
-        return beta;
+        beta
     }
 
     fn quiesce_max(&mut self, b: &mut Board, mut alpha: i32, beta: i32) -> i32 {

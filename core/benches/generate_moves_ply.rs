@@ -5,11 +5,9 @@ use chess_core::{
 use criterion::{criterion_group, criterion_main, Criterion};
 
 pub fn gen_moves(gen: &MoveGenerator, b: &mut Board, depth: u32) {
-    if depth == 0 {
-        return;
-    } else {
+    if depth != 0 {
         let mut buf = InlineBuffer::<128>::new();
-        gen.gen_moves::<gen_type::All, _, _>(&b, &mut buf);
+        gen.gen_moves::<gen_type::All, _, _>(b, &mut buf);
         for m in buf.iter() {
             let undo = b.make_move(m);
             gen_moves(gen, b, depth - 1);

@@ -28,7 +28,7 @@ pub struct EngineSignal {
 impl EngineSignal {
     /// Whether the GUI has asked the engine to stop.
     pub fn should_stop(&self) -> bool {
-        return self.stop.load(Ordering::Relaxed);
+        self.stop.load(Ordering::Relaxed)
     }
 
     pub fn stop(&self) {
@@ -50,13 +50,13 @@ impl EngineCommand {
     fn create() -> (EngineCommand, EngineSignal) {
         let stop = Arc::new(AtomicBool::new(false));
         let (send, recv) = crossbeam_channel::bounded(64);
-        return (
+        (
             EngineCommand {
                 stop: stop.clone(),
                 info: recv,
             },
             EngineSignal { stop, info: send },
-        );
+        )
     }
 
     pub fn reset(&self) {
@@ -235,7 +235,9 @@ impl<E: Engine + Send + 'static, F: Fn(Msg)> UciEngine<E, F> {
                 self.board = match pos.position {
                     StartOrFen::StartPosition => Board::start_position(EndChain),
                     StartOrFen::Fen(ref x) => {
-                        let Ok(board) = Board::from_fen(x, EndChain) else { return false };
+                        let Ok(board) = Board::from_fen(x, EndChain) else {
+                            return false;
+                        };
                         board
                     }
                 };
@@ -243,7 +245,9 @@ impl<E: Engine + Send + 'static, F: Fn(Msg)> UciEngine<E, F> {
                     .send(ThreadCmd::Position(self.board.clone()))
                     .unwrap();
                 for m in pos.moves {
-                    let Some(m) = m.to_move(&self.move_gen, &self.board) else { return false };
+                    let Some(m) = m.to_move(&self.move_gen, &self.board) else {
+                        return false;
+                    };
                     self.board.make_move(m);
                     self.cmd.send(ThreadCmd::Move(m)).unwrap();
                 }
@@ -255,7 +259,9 @@ impl<E: Engine + Send + 'static, F: Fn(Msg)> UciEngine<E, F> {
                         super::GoCmd::SearchMoves(m) => {
                             let mut moves = Vec::new();
                             for m in m {
-                                let Some(m) = m.to_move(&self.move_gen, &self.board) else { return false };
+                                let Some(m) = m.to_move(&self.move_gen, &self.board) else {
+                                    return false;
+                                };
                                 self.board.make_move(m);
                                 moves.push(m);
                             }

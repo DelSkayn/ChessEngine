@@ -128,7 +128,7 @@ impl Move {
         debug_assert_eq!(self.ty(), Self::TYPE_PROMOTION);
         let raw = self.0 & Self::PROMOTION_MASK;
         // Raw should only be a possible value from Promotion enum
-        return unsafe { mem::transmute::<_, Promotion>(raw) };
+        unsafe { mem::transmute::<_, Promotion>(raw) }
     }
 
     #[inline]

@@ -22,7 +22,7 @@ fn bishop_sliding_attack(s: Square, occupied: BB) -> BB {
 }
 
 fn edges(s: Square) -> BB {
-    (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << s.rank() * 8)
+    (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << (s.rank() * 8))
         | (BB::FILE_A | BB::FILE_H) & !(BB::FILE_A << s.file())
 }
 
@@ -47,9 +47,9 @@ fn init_possible(s: Square, rook: bool) -> Vec<Possible> {
 
     for i in 0..1 << bits.len() {
         let mut occ = BB::empty();
-        for j in 0..bits.len() {
+        for (j, bit) in bits.iter().enumerate() {
             if (1 << j) & i != 0 {
-                occ |= BB::square(bits[j])
+                occ |= BB::square(*bit)
             }
         }
         possible.push(Possible {

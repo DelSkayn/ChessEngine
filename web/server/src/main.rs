@@ -5,7 +5,6 @@ use axum::{http::StatusCode, response::IntoResponse, routing::get_service, Route
 use axum_macros::FromRef;
 use base64::engine::fast_portable::FastPortable;
 use engine::colosseum::Colosseum;
-use sqlx::postgres::Postgres;
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,

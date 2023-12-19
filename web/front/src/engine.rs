@@ -32,15 +32,14 @@ async fn fetch_engine() -> Vec<Engine> {
     }
 
     let engines = resp.json::<Vec<Engine>>().await;
-    let engines = match engines {
+
+    match engines {
         Err(e) => {
             error!("error loading engines: {e}");
-            return Vec::new();
+            Vec::new()
         }
         Ok(x) => x,
-    };
-
-    return engines;
+    }
 }
 
 async fn delete_engine(id: i32, token: String) {
@@ -79,8 +78,6 @@ async fn delete_engine(id: i32, token: String) {
         }
         Ok(x) => x,
     };
-
-    return;
 }
 
 #[component]
@@ -96,11 +93,13 @@ pub fn EnginesUpload<G: Html>(cx: Scope<'_>) -> View<G> {
     let upload_engine = move || {
         let file_input = file_input.get::<DomNode>();
         let file_input = file_input.unchecked_into::<HtmlInputElement>();
-        let Some(file) = file_input.files().unwrap().get(0) else { return };
+        let Some(file) = file_input.files().unwrap().get(0) else {
+            return;
+        };
         error.set(None);
 
         let info = login_info.get_untracked();
-        let UserInfo::LoggedIn {  ref token,.. }= *info else {
+        let UserInfo::LoggedIn { ref token, .. } = *info else {
             return;
         };
 
@@ -109,7 +108,7 @@ pub fn EnginesUpload<G: Html>(cx: Scope<'_>) -> View<G> {
         let data = FormData::new().unwrap();
         data.append_with_str("description", &engine_description.get())
             .unwrap();
-        data.append_with_blob_and_filename("file", &*file, file.name().as_str())
+        data.append_with_blob_and_filename("file", &file, file.name().as_str())
             .unwrap();
 
         let header_value = format!("Bearer {}", token);
@@ -245,7 +244,7 @@ pub fn Engines<G: Html>(cx: Scope<'_>) -> View<G> {
     let context = provide_context_ref(cx, context);
 
     create_effect(cx, move || {
-        if context.get().loading == true {
+        if context.get().loading {
             debug!("reloading engines");
             spawn_local_scoped(cx, async {
                 let engines = fetch_engine().await;
@@ -306,13 +305,11 @@ pub fn Engines<G: Html>(cx: Scope<'_>) -> View<G> {
     let on_click = move |_| {
         let login_info = login_info.get();
         let UserInfo::LoggedIn { ref token, .. } = *login_info else {
-            return
+            return;
         };
         let header_value = format!("Bearer {}", token);
 
-        let Some(id) = *selected.get() else{
-            return
-        };
+        let Some(id) = *selected.get() else { return };
 
         spawn_local_scoped(cx, async move {
             delete_engine(id, header_value).await;

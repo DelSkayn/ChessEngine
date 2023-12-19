@@ -35,12 +35,9 @@ impl UciMove {
     pub fn to_move<C: MoveChain>(&self, gen: &MoveGenerator, board: &Board<C>) -> Option<Move> {
         let mut moves = Vec::<Move>::new();
         gen.gen_moves::<gen_type::All, _, _>(board, &mut moves);
-        for m in moves {
-            if m.from() == self.from && m.to() == self.to && m.get_promotion() == self.promotion {
-                return Some(m);
-            }
-        }
-        None
+        moves.into_iter().find(|&m| {
+            m.from() == self.from && m.to() == self.to && m.get_promotion() == self.promotion
+        })
     }
 }
 
@@ -74,10 +71,10 @@ impl FromStr for UciMove {
             return Err(InvalidMove);
         }
         let Some(from) = Square::from_name(&s[..2]) else {
-            return Err(InvalidMove)
+            return Err(InvalidMove);
         };
         let Some(to) = Square::from_name(&s[2..4]) else {
-            return Err(InvalidMove)
+            return Err(InvalidMove);
         };
 
         let promotion = if s.len() > 4 && s.is_char_boundary(5) {
@@ -189,7 +186,7 @@ impl fmt::Display for Cmd {
                     StartOrFen::Fen(ref x) => write!(f, " fen {}", x)?,
                     StartOrFen::StartPosition => write!(f, " startpos")?,
                 }
-                if p.moves.len() > 0 {
+                if !p.moves.is_empty() {
                     write!(f, " moves")?;
                     for m in &p.moves {
                         write!(f, "{m}")?
@@ -264,7 +261,7 @@ impl Cmd {
         };
 
         match first {
-            "uci" => return Some(Cmd::Uci),
+            "uci" => Some(Cmd::Uci),
             "debug" => {
                 let mut enabled = true;
                 if let Some(x) = parts.next() {
@@ -272,9 +269,9 @@ impl Cmd {
                         enabled = false;
                     }
                 }
-                return Some(Cmd::Debug(enabled));
+                Some(Cmd::Debug(enabled))
             }
-            "isready" => return Some(Cmd::IsReady),
+            "isready" => Some(Cmd::IsReady),
             "setoption" => {
                 if let Some(v) = parts.next() {
                     if v == "name" {
@@ -294,11 +291,9 @@ impl Cmd {
                         }
                     }
                 }
-                return None;
+                None
             }
-            "ucinewgame" => {
-                return Some(Cmd::NewGame);
-            }
+            "ucinewgame" => Some(Cmd::NewGame),
             "position" => {
                 let position = if let Some(x) = parts.next() {
                     if x == "startpos" {
@@ -339,7 +334,7 @@ impl Cmd {
                 } else {
                     Vec::new()
                 };
-                return Some(Cmd::Position(PositionCmd { position, moves }));
+                Some(Cmd::Position(PositionCmd { position, moves }))
             }
             "go" => {
                 let mut cmd = Vec::new();
@@ -350,7 +345,7 @@ impl Cmd {
                             let mut moves = Vec::new();
                             cur = parts.next();
                             while let Some(x) = cur {
-                                if let Some(m) = UciMove::from_str(x).ok() {
+                                if let Ok(m) = UciMove::from_str(x) {
                                     moves.push(m);
                                     cur = parts.next();
                                 } else {
@@ -364,22 +359,25 @@ impl Cmd {
                             cmd.push(GoCmd::Ponder);
                         }
                         "wtime" => {
-                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             let time = Duration::from_millis(time as u64);
                             cmd.push(GoCmd::WhiteTime(time));
                         }
                         "btime" => {
-                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             let time = Duration::from_millis(time as u64);
                             cmd.push(GoCmd::BlackTime(time));
                         }
                         "winc" => {
-                            let Some(time) = parts.next().and_then(|x| i32::from_str(x).ok()) else {
-                                return None
+                            let Some(time) = parts.next().and_then(|x| i32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             if time > 0 {
                                 let time = Duration::from_millis(time as u64);
@@ -387,8 +385,9 @@ impl Cmd {
                             }
                         }
                         "binc" => {
-                            let Some(time) = parts.next().and_then(|x| i32::from_str(x).ok()) else {
-                                return None
+                            let Some(time) = parts.next().and_then(|x| i32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             if time > 0 {
                                 let time = Duration::from_millis(time as u64);
@@ -396,32 +395,37 @@ impl Cmd {
                             }
                         }
                         "movestogo" => {
-                            let Some(moves) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(moves) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             cmd.push(GoCmd::MovesToGo(moves));
                         }
                         "depth" => {
-                            let Some(depth) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(depth) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             cmd.push(GoCmd::Depth(depth));
                         }
                         "nodes" => {
-                            let Some(nodes) = parts.next().and_then(|x| u64::from_str(x).ok()) else {
-                                return None
+                            let Some(nodes) = parts.next().and_then(|x| u64::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             cmd.push(GoCmd::Nodes(nodes));
                         }
                         "mate" => {
-                            let Some(depth) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(depth) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             cmd.push(GoCmd::Mate(depth));
                         }
                         "movetime" => {
-                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok()) else {
-                                return None
+                            let Some(time) = parts.next().and_then(|x| u32::from_str(x).ok())
+                            else {
+                                return None;
                             };
                             cmd.push(GoCmd::MoveTime(time));
                         }
@@ -430,12 +434,12 @@ impl Cmd {
                     }
                     cur = parts.next()
                 }
-                return Some(Cmd::Go(cmd));
+                Some(Cmd::Go(cmd))
             }
-            "stop" => return Some(Cmd::Stop),
-            "ponderhit" => return Some(Cmd::PonderHit),
-            "quit" => return Some(Cmd::Quit),
-            _ => return None,
+            "stop" => Some(Cmd::Stop),
+            "ponderhit" => Some(Cmd::PonderHit),
+            "quit" => Some(Cmd::Quit),
+            _ => None,
         }
     }
 }
@@ -642,26 +646,24 @@ impl fmt::Display for Msg {
 impl Msg {
     pub fn from_line(line: &str) -> Option<Msg> {
         let mut parts = line.split_whitespace();
-        let Some(msg) = parts.next() else {
-            return None
-        };
+        let msg = parts.next()?;
         match msg {
             "id" => {
                 let Some(next) = parts.next() else {
-                    return None
+                    return None;
                 };
                 match next {
                     "name" => Some(Msg::Id(Id::Name(parts.collect::<Vec<_>>().join(" ")))),
                     "author" => Some(Msg::Id(Id::Author(parts.collect::<Vec<_>>().join(" ")))),
                     "version" => {
                         let Some(major) = parts.next().and_then(|x| x.parse().ok()) else {
-                            return None
+                            return None;
                         };
                         let Some(minor) = parts.next().and_then(|x| x.parse().ok()) else {
-                            return None
+                            return None;
                         };
                         let Some(patch) = parts.next().and_then(|x| x.parse().ok()) else {
-                            return None
+                            return None;
                         };
                         Some(Msg::Id(Id::Version(Version {
                             major,
@@ -676,7 +678,7 @@ impl Msg {
             "readyok" => Some(Msg::ReadyOk),
             "bestmove" => {
                 let Some(m) = parts.next().and_then(|x| x.parse().ok()) else {
-                    return None
+                    return None;
                 };
                 let mut ponder = None;
                 if let Some(x) = parts.next() {

@@ -15,6 +15,12 @@ impl HashChain<EndChain> {
     }
 }
 
+impl Default for HashChain<EndChain> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<C: MoveChain> HashChain<C> {
     pub fn with(chain: C) -> Self {
         HashChain {

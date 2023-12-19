@@ -1,7 +1,6 @@
 use chess_core::{
     board::EndChain,
     gen::{gen_type, InlineBuffer, MoveGenerator, MoveList},
-    hash::Hasher,
     Board,
 };
 use std::env;
@@ -15,23 +14,15 @@ fn main() {
         Board::start_position(EndChain)
     };
 
-    let hasher = Hasher::new();
     let move_gen = MoveGenerator::new();
     for i in 1..=6 {
         let mut count = 0;
-        perft(&move_gen, &mut board, &hasher, i, &mut count, true);
+        perft(&move_gen, &mut board, i, &mut count, true);
         println!("depth {}: {} nodes", i, count);
     }
 }
 
-fn perft(
-    gen: &MoveGenerator,
-    b: &mut Board,
-    hasher: &Hasher,
-    depth: usize,
-    count: &mut usize,
-    root: bool,
-) {
+fn perft(gen: &MoveGenerator, b: &mut Board, depth: usize, count: &mut usize, root: bool) {
     if depth == 0 {
         *count += 1;
         return;
@@ -42,7 +33,7 @@ fn perft(
         let m = buffer.get(i);
         let last = *count;
         let m = b.make_move(m);
-        perft(gen, b, hasher, depth - 1, count, false);
+        perft(gen, b, depth - 1, count, false);
         if root {
             println!("nodes after '{}':{}", m.mov, *count - last);
         }

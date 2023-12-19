@@ -177,10 +177,10 @@ unsafe fn init_magic() {
         let mut occ = BB::empty();
         loop {
             let idx = occ.get().wrapping_mul(BISHOP_MAGIC[s]);
-            let idx = (idx >> 64 - 9) as u32 + BISHOP_OFFSET[s];
+            let idx = (idx >> (64 - 9)) as u32 + BISHOP_OFFSET[s];
             MAGIC_TABLE[idx as usize] = bishop_sliding_attack(s, occ);
 
-            occ = occ.sub(BISHOP_MASK[s]) & BISHOP_MASK[s];
+            occ = (occ - BISHOP_MASK[s]) & BISHOP_MASK[s];
             if occ.none() {
                 break;
             }
@@ -189,10 +189,10 @@ unsafe fn init_magic() {
         let mut occ = BB::empty();
         loop {
             let idx = occ.get().wrapping_mul(ROOK_MAGIC[s]);
-            let idx = (idx >> 64 - 12) as u32 + ROOK_OFFSET[s];
+            let idx = (idx >> (64 - 12)) as u32 + ROOK_OFFSET[s];
             MAGIC_TABLE[idx as usize] = rook_sliding_attack(s, occ);
 
-            occ = occ.sub(ROOK_MASK[s]) & ROOK_MASK[s];
+            occ = (occ - ROOK_MASK[s]) & ROOK_MASK[s];
             if occ.none() {
                 break;
             }
@@ -203,7 +203,7 @@ unsafe fn init_magic() {
 pub fn rook_attacks(s: Square, occ: BB) -> BB {
     unsafe {
         let idx = (occ & ROOK_MASK[s]).get().wrapping_mul(ROOK_MAGIC[s]);
-        let idx = (idx >> 64 - 12) as u32 + ROOK_OFFSET[s];
+        let idx = (idx >> (64 - 12)) as u32 + ROOK_OFFSET[s];
         MAGIC_TABLE[idx as usize]
     }
 }
@@ -211,7 +211,7 @@ pub fn rook_attacks(s: Square, occ: BB) -> BB {
 pub fn bishop_attacks(s: Square, occ: BB) -> BB {
     unsafe {
         let idx = (occ & BISHOP_MASK[s]).get().wrapping_mul(BISHOP_MAGIC[s]);
-        let idx = (idx >> 64 - 9) as u32 + BISHOP_OFFSET[s];
+        let idx = (idx >> (64 - 9)) as u32 + BISHOP_OFFSET[s];
         MAGIC_TABLE[idx as usize]
     }
 }
@@ -233,7 +233,7 @@ fn bishop_sliding_attack(s: Square, occupied: BB) -> BB {
 }
 
 fn edges(s: Square) -> BB {
-    (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << s.rank() * 8)
+    (BB::RANK_1 | BB::RANK_8) & !(BB::RANK_1 << (s.rank() * 8))
         | (BB::FILE_A | BB::FILE_H) & !(BB::FILE_A << s.file())
 }
 

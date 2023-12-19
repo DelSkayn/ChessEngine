@@ -238,7 +238,13 @@ impl MoveGenerator {
                 return true;
             }
         }
-        return true;
+        true
+    }
+}
+
+impl Default for MoveGenerator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -278,9 +284,9 @@ impl<P: Player, T: GenType, M: MoveList, C: MoveChain> TypedMoveGenerator<P, T, 
         let target = if T::QUIET { !info.my } else { info.their };
 
         if (info.attacked & b.pieces[P::KING]).any() {
-            self.gen_evasion(b, &info, list, target);
+            self.gen_evasion(b, info, list, target);
         } else {
-            self.gen_moves_pseudo(b, &info, list, target);
+            self.gen_moves_pseudo(b, info, list, target);
         }
 
         /*
@@ -327,10 +333,8 @@ impl<P: Player, T: GenType, M: MoveList, C: MoveChain> TypedMoveGenerator<P, T, 
         }
 
         let mut blockers = attackers;
-        if T::QUIET {
-            if (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
-                blockers |= self.tables.between(attackers.first_piece(), king_sq);
-            }
+        if T::QUIET && (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
+            blockers |= self.tables.between(attackers.first_piece(), king_sq);
         }
         self.gen_moves_sliders(b, info, list, blockers);
         self.gen_moves_knight(b, info, list, blockers);
@@ -568,10 +572,10 @@ impl<P: Player, T: GenType, M: MoveList, C: MoveChain> TypedMoveGenerator<P, T, 
             return true;
         }
 
-        return (info.blockers & BB::square(m.from())).none()
+        (info.blockers & BB::square(m.from())).none()
             || self
                 .tables
-                .aligned(from, to, b.pieces[P::KING].first_piece());
+                .aligned(from, to, b.pieces[P::KING].first_piece())
     }
 }
 
@@ -611,7 +615,7 @@ impl<P: Player, T: GenType, C: MoveChain> TypedMoveGenerator<P, T, MoveCount, C>
         }
 
         let mut list = MoveCount::new();
-        self.gen_moves_sliders(b, &info, &mut list, blockers);
+        self.gen_moves_sliders(b, info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
@@ -619,7 +623,7 @@ impl<P: Player, T: GenType, C: MoveChain> TypedMoveGenerator<P, T, MoveCount, C>
         if list.len() > 0 {
             return false;
         }
-        self.gen_pawn_moves(b, &info, &mut list, blockers);
+        self.gen_pawn_moves(b, info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }

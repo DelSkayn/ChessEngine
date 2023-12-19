@@ -133,8 +133,7 @@ impl Engine {
             if buffer.starts_with("bestmove") {
                 let m = buffer
                     .split_whitespace()
-                    .skip(1)
-                    .next()
+                    .nth(1)
                     .ok_or_else(|| anyhow!("Missing move after `bestmove` command"))?;
 
                 self.running = false;

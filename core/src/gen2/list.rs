@@ -10,6 +10,10 @@ pub trait MoveList {
 
     /// returns the amount of moves.
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct MoveCount(usize);
@@ -17,6 +21,12 @@ pub struct MoveCount(usize);
 impl MoveCount {
     pub fn new() -> Self {
         MoveCount(0)
+    }
+}
+
+impl Default for MoveCount {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

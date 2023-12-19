@@ -104,6 +104,6 @@ impl GameOutcome {
         if gen.is_checkmate(b, &info) {
             return GameOutcome::Won(b.state.player.flip());
         }
-        return GameOutcome::None;
+        GameOutcome::None
     }
 }

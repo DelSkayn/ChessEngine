@@ -358,13 +358,11 @@ where
             self.state.move_clock = 0;
         }
 
-        let res = UnmakeMove {
+        UnmakeMove {
             mov: m,
             taken,
             state,
-        };
-        //self.moves.push(res);
-        res
+        }
     }
 
     /// Undo a move

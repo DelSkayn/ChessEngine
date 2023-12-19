@@ -52,8 +52,8 @@ impl Square {
             if !('1'..='8').contains(&rank) {
                 return None;
             }
-            let file = file.to_ascii_lowercase() as u8 - 'a' as u8;
-            let rank = rank as u8 - '1' as u8;
+            let file = file.to_ascii_lowercase() as u8 - b'a';
+            let rank = rank as u8 - b'1';
             return Some(Self::from_file_rank(file, rank));
         }
         None
@@ -145,7 +145,7 @@ impl Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let file = self.0 % 8;
         let rank = self.0 / 8;
-        let file_name = ('a' as u8 + file) as char;
+        let file_name = (b'a' + file) as char;
         write!(f, "{}{}", file_name, rank + 1)
     }
 }

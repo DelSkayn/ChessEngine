@@ -55,15 +55,19 @@ impl Config {
     pub fn set_option(&mut self, name: String, value: Option<String>) {
         match name.as_str() {
             "contempt" => {
-                let Some(v) = value.and_then(|x| x.parse().ok()) else { return };
-                if v < -100 || v > 900 {
+                let Some(v) = value.and_then(|x| x.parse().ok()) else {
+                    return;
+                };
+                if !(-100..=900).contains(&v) {
                     return;
                 }
                 self.contempt = v;
             }
             "Hash" => {
-                let Some(v) = value.and_then(|x| x.parse().ok()) else { return };
-                if v < 1 || v > 1024 * 4 {
+                let Some(v) = value.and_then(|x| x.parse().ok()) else {
+                    return;
+                };
+                if !(1..=1024 * 4).contains(&v) {
                     return;
                 }
                 self.hash_size = v;
@@ -107,6 +111,12 @@ impl AlphaBeta {
     }
 }
 
+impl Default for AlphaBeta {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Engine for AlphaBeta {
     const NAME: &'static str = "Alpha Beta";
     const AUTHOR: &'static str = "Mees Delzenne";
@@ -145,16 +155,14 @@ impl Engine for AlphaBeta {
             Duration::MAX
         } else if let Some(x) = config.movetime {
             x
+        } else if let (Player::White, Some(time), _) | (Player::Black, _, Some(time)) =
+            (player, config.wtime, config.btime)
+        {
+            let increment = config.winc.unwrap_or_default();
+            let time_left = time + increment * 20;
+            time_left / 20
         } else {
-            if let (Player::White, Some(time), _) | (Player::Black, _, Some(time)) =
-                (player, config.wtime, config.btime)
-            {
-                let increment = config.winc.unwrap_or_default();
-                let time_left = time + increment * 20;
-                time_left / 20
-            } else {
-                Duration::MAX
-            }
+            Duration::MAX
         };
         self.limit.time = limit;
         self.limit.nodes = config.nodes.unwrap_or(u64::MAX);

@@ -125,7 +125,7 @@ impl BoardContext {
 
 #[component(inline_props)]
 pub fn Piece<G: Html>(cx: Scope, view: RcSignal<Player>, info: PieceInfo) -> View<G> {
-    static PIECE_SRC_MAP: [&'static str; 12] = [
+    static PIECE_SRC_MAP: [&str; 12] = [
         "wK.svg", "wQ.svg", "wB.svg", "wN.svg", "wR.svg", "wP.svg", "bK.svg", "bQ.svg", "bB.svg",
         "bN.svg", "bR.svg", "bP.svg",
     ];

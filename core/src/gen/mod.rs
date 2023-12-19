@@ -15,28 +15,22 @@ pub use types::*;
 mod tables;
 use tables::Tables;
 
-use std::{mem::MaybeUninit, ptr};
+use std::mem::MaybeUninit;
+
+pub const MAX_MOVES: usize = 218;
 
 /// A constant size buffer stored on the stack,
 /// Can be used for storing moves without allocation.
 #[derive(Copy)]
-pub struct InlineBuffer<const SIZE: usize, T: Copy = Move> {
+pub struct InlineBuffer<const SIZE: usize = MAX_MOVES, T: Copy = Move> {
     moves: [MaybeUninit<T>; SIZE],
     len: u16,
 }
 
 impl<const SIZE: usize, T: Copy> Clone for InlineBuffer<SIZE, T> {
     fn clone(&self) -> Self {
-        let mut res = InlineBuffer::<SIZE, T>::new();
-        unsafe {
-            ptr::copy_nonoverlapping(
-                self.moves.as_ptr(),
-                res.moves.as_mut_ptr(),
-                self.len as usize,
-            )
-        };
-        res.len = self.len;
-        res
+        // TODO: Maybe remove copy?
+        *self
     }
 }
 
@@ -82,6 +76,12 @@ impl<const SIZE: usize, T: Copy> InlineBuffer<SIZE, T> {
     }
 }
 
+impl<const SIZE: usize, T: Copy> Default for InlineBuffer<SIZE, T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct InlineIter<'a, const SIZE: usize, T: Copy = Move> {
     len: u16,
     cur: u16,
@@ -115,7 +115,7 @@ impl<const SIZE: usize> MoveList for InlineBuffer<SIZE> {
 
     fn set(&mut self, idx: usize, m: Move) {
         assert!(idx < self.len as usize);
-        self.moves[idx as usize] = MaybeUninit::new(m);
+        self.moves[idx] = MaybeUninit::new(m);
     }
 
     fn clear(&mut self) {
@@ -159,6 +159,10 @@ pub trait MoveList {
 
     /// Swap to moves at given index.
     fn swap(&mut self, a: usize, b: usize);
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl MoveList for Vec<Move> {
@@ -378,7 +382,7 @@ impl MoveGenerator {
                 return true;
             }
         }
-        return true;
+        true
     }
 
     pub fn is_king_checked_player<P: Player, C: MoveChain>(
@@ -436,7 +440,7 @@ impl MoveGenerator {
         }
 
         let mut list = InlineBuffer::<128>::new();
-        self.gen_moves_sliders::<P, gen_type::All, _, _>(b, &info, &mut list, blockers);
+        self.gen_moves_sliders::<P, gen_type::All, _, _>(b, info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
@@ -446,7 +450,7 @@ impl MoveGenerator {
             return false;
         }
         list.clear();
-        self.gen_pawn_moves::<P, _, _>(b, &info, &mut list, blockers);
+        self.gen_pawn_moves::<P, _, _>(b, info, &mut list, blockers);
         if list.len() > 0 {
             return false;
         }
@@ -473,16 +477,16 @@ impl MoveGenerator {
         let target = if T::QUIET { !info.my } else { info.their };
 
         if (info.attacked & b.pieces[P::KING]).any() {
-            self.gen_evasion::<P, T, _, _>(b, &info, list, target);
+            self.gen_evasion::<P, T, _, _>(b, info, list, target);
         } else {
-            self.gen_moves_pseudo::<P, T, _, _>(b, &info, list, target);
+            self.gen_moves_pseudo::<P, T, _, _>(b, info, list, target);
         }
 
         if T::LEGAL {
             let mut cur = 0;
             for i in 0..list.len() {
                 let m = list.get(i);
-                if self.is_legal_player::<P, _>(list.get(i), b, &info) {
+                if self.is_legal_player::<P, _>(list.get(i), b, info) {
                     list.set(cur, m);
                     cur += 1;
                 }
@@ -525,10 +529,8 @@ impl MoveGenerator {
         }
 
         let mut blockers = attackers;
-        if T::QUIET {
-            if (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
-                blockers |= self.tables.between(attackers.first_piece(), king_sq);
-            }
+        if T::QUIET && (attackers & b.pieces[P::Opponent::KNIGHT]).none() {
+            blockers |= self.tables.between(attackers.first_piece(), king_sq);
         }
         self.gen_moves_sliders::<P, T, M, _>(b, info, list, blockers);
         self.gen_moves_knight::<P, M, _>(b, list, blockers);
@@ -764,9 +766,15 @@ impl MoveGenerator {
             return m.ty() == Move::TYPE_CASTLE || (BB::square(m.to()) & info.attacked).none();
         }
 
-        return (info.blockers & BB::square(m.from())).none()
+        (info.blockers & BB::square(m.from())).none()
             || self
                 .tables
-                .aligned(from, to, b.pieces[P::KING].first_piece());
+                .aligned(from, to, b.pieces[P::KING].first_piece())
+    }
+}
+
+impl Default for MoveGenerator {
+    fn default() -> Self {
+        Self::new()
     }
 }
