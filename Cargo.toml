@@ -1,17 +1,7 @@
 [workspace]
+resolver = "2"
 members = [
-#    "ui",
-    "core",
-    "engines/alpha_beta",
-    "engines/mcts",
-    #"engines/alpha_beta_2",
-    #"engines/alpha_beta_back",
-    "engines/random",
-    "bot",
-    "web/front",
-    "web/server",
-    "web/common",
-    "utils/find_magic",
+    "crates/*"
 ]
 
 [profile.release]

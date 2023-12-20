@@ -41,6 +41,7 @@ pub struct Move(u16);
 
 impl Move {
     pub const INVALID: Move = Move(0xffff);
+    pub const NULL: Move = Move(0);
 
     pub const FROM_MASK: u16 = 0b111_111;
     pub const TO_MASK: u16 = 0b111_111 << 6;
