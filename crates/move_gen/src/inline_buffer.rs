@@ -98,6 +98,10 @@ impl<const SIZE: usize, T: Copy> InlineBuffer<SIZE, T> {
     pub fn clear(&mut self) {
         self.len = 0;
     }
+
+    pub fn as_slice(&self) -> &[Move] {
+        unsafe { std::slice::from_raw_parts::<Move>(self.moves.as_ptr().cast(), self.len as usize) }
+    }
 }
 
 impl<const SIZE: usize, T: Copy> Default for InlineBuffer<SIZE, T> {

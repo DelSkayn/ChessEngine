@@ -1,3 +1,4 @@
+pub mod engine;
 mod r#move;
 pub mod req;
 pub mod resp;

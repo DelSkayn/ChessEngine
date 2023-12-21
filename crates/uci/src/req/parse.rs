@@ -1,4 +1,4 @@
-use super::OptionValue;
+use super::{GoRequest, OptionValue};
 use crate::{r#move::UciMove, Request};
 use common::board::Board;
 use nom::{
@@ -173,7 +173,7 @@ fn go(i: &str) -> IResult<&str, Request> {
     }
     Ok((
         i,
-        Request::Go {
+        Request::Go(GoRequest {
             searchmoves,
             ponder,
             wtime,
@@ -186,7 +186,7 @@ fn go(i: &str) -> IResult<&str, Request> {
             mate,
             movetime,
             infinite,
-        },
+        }),
     ))
 }
 

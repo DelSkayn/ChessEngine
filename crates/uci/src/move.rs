@@ -1,4 +1,4 @@
-use common::{Promotion, Square};
+use common::{Move, Promotion, Square};
 use nom::{
     branch::alt,
     character::complete::{char, satisfy},
@@ -17,6 +17,25 @@ pub struct UciMove {
 impl UciMove {
     pub fn parse_partial(i: &str) -> IResult<&str, UciMove> {
         r#move(i)
+    }
+
+    pub fn to_move(&self, possible_moves: &[Move]) -> Option<Move> {
+        possible_moves
+            .iter()
+            .find(|x| {
+                x.to() == self.to && x.from() == self.from && x.get_promotion() == self.promotion
+            })
+            .copied()
+    }
+}
+
+impl From<Move> for UciMove {
+    fn from(value: Move) -> Self {
+        UciMove {
+            from: value.from(),
+            to: value.to(),
+            promotion: value.get_promotion(),
+        }
     }
 }
 

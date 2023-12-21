@@ -20,23 +20,71 @@ pub enum Request {
         fen: Option<Box<Board>>,
         moves: Vec<UciMove>,
     },
-    Go {
-        searchmoves: Option<Vec<UciMove>>,
-        ponder: bool,
-        wtime: Option<i64>,
-        btime: Option<i64>,
-        winc: Option<i32>,
-        binc: Option<i32>,
-        moves_to_go: Option<u32>,
-        depth: Option<u32>,
-        nodes: Option<u64>,
-        mate: Option<u32>,
-        movetime: Option<u64>,
-        infinite: bool,
-    },
+    Go(GoRequest),
     Stop,
     PonderHit,
     Quit,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct GoRequest {
+    searchmoves: Option<Vec<UciMove>>,
+    ponder: bool,
+    wtime: Option<i64>,
+    btime: Option<i64>,
+    winc: Option<i32>,
+    binc: Option<i32>,
+    moves_to_go: Option<u32>,
+    depth: Option<u32>,
+    nodes: Option<u64>,
+    mate: Option<u32>,
+    movetime: Option<u64>,
+    infinite: bool,
+}
+
+impl fmt::Display for GoRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(x) = self.searchmoves.as_ref() {
+            write!(f, " searchmoves")?;
+            for m in x.iter() {
+                write!(f, " {m}")?;
+            }
+        }
+        if self.ponder {
+            write!(f, " ponder")?;
+        }
+        if let Some(wtime) = self.wtime {
+            write!(f, " wtime {wtime}")?;
+        }
+        if let Some(btime) = self.btime {
+            write!(f, " btime {btime}")?;
+        }
+        if let Some(winc) = self.winc {
+            write!(f, " winc {winc}")?;
+        }
+        if let Some(binc) = self.binc {
+            write!(f, " binc {binc}")?;
+        }
+        if let Some(m) = self.moves_to_go {
+            write!(f, " movestogo {m}")?;
+        }
+        if let Some(d) = self.depth {
+            write!(f, " depth {d}")?;
+        }
+        if let Some(n) = self.nodes {
+            write!(f, " nodes {n}")?;
+        }
+        if let Some(m) = self.mate {
+            write!(f, " mate {m}")?;
+        }
+        if let Some(m) = self.movetime {
+            write!(f, " movetime {m}")?;
+        }
+        if self.infinite {
+            write!(f, " infinite")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -86,62 +134,7 @@ impl fmt::Display for Request {
                     Ok(())
                 }
             }
-            Request::Go {
-                searchmoves,
-                ponder,
-                wtime,
-                btime,
-                winc,
-                binc,
-                moves_to_go,
-                depth,
-                nodes,
-                mate,
-                movetime,
-                infinite,
-            } => {
-                write!(f, "go")?;
-                if let Some(x) = searchmoves {
-                    write!(f, " searchmoves")?;
-                    for m in x.iter() {
-                        write!(f, " {m}")?;
-                    }
-                }
-                if *ponder {
-                    write!(f, " ponder")?;
-                }
-                if let Some(wtime) = wtime {
-                    write!(f, " wtime {wtime}")?;
-                }
-                if let Some(btime) = btime {
-                    write!(f, " btime {btime}")?;
-                }
-                if let Some(winc) = winc {
-                    write!(f, " winc {winc}")?;
-                }
-                if let Some(binc) = binc {
-                    write!(f, " binc {binc}")?;
-                }
-                if let Some(m) = moves_to_go {
-                    write!(f, " movestogo {m}")?;
-                }
-                if let Some(d) = depth {
-                    write!(f, " depth {d}")?;
-                }
-                if let Some(n) = nodes {
-                    write!(f, " nodes {n}")?;
-                }
-                if let Some(m) = mate {
-                    write!(f, " mate {m}")?;
-                }
-                if let Some(m) = movetime {
-                    write!(f, " movetime {m}")?;
-                }
-                if *infinite {
-                    write!(f, " infinite")?;
-                }
-                Ok(())
-            }
+            Request::Go(x) => write!(f, "go {x}"),
             Request::Stop => write!(f, "stop"),
             Request::PonderHit => write!(f, "ponderhit"),
             Request::Quit => write!(f, "quit"),
