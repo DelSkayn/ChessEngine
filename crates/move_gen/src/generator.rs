@@ -161,6 +161,7 @@ impl MoveGenerator {
         }
     }
 
+    #[inline]
     pub fn is_legal(&self, m: Move, b: &Board, info: &PositionInfo) -> bool {
         match b.state.player {
             common::Player::White => {
@@ -173,6 +174,7 @@ impl MoveGenerator {
     }
 
     /// Returns if the game is drawn by material or by move clock.
+    #[inline]
     pub fn drawn_by_rule(&self, b: &Board, info: &PositionInfo) -> bool {
         if b.state.move_clock >= 50 {
             return true;
@@ -236,6 +238,7 @@ impl<P: Player, T: GenType> TypedMoveGenerator<P, T> {
         }
     }
 
+    #[inline]
     pub fn is_king_checked(&self, b: &Board, info: &PositionInfo) -> bool {
         let king_sq = b.pieces[P::KING].first_piece();
         let attackers = self.tables.bishop_attacks(king_sq, info.occupied)
@@ -248,14 +251,13 @@ impl<P: Player, T: GenType> TypedMoveGenerator<P, T> {
         attackers.count() > 0
     }
 
+    #[inline]
     pub fn gen_moves(&self, b: &Board, list: &mut InlineBuffer) -> PositionInfo {
         let info = PositionInfo::about::<P>(self.tables, b);
         self.gen_moves_info(b, &info, list);
-        panic!();
         info
     }
 
-    #[inline]
     pub fn gen_moves_info(&self, b: &Board, info: &PositionInfo, list: &mut InlineBuffer) {
         let target = if T::QUIET { !info.my } else { info.their };
 
@@ -264,20 +266,6 @@ impl<P: Player, T: GenType> TypedMoveGenerator<P, T> {
         } else {
             self.gen_moves_pseudo(b, info, list, target);
         }
-
-        /*
-        if T::LEGAL {
-            let mut cur = 0;
-            for i in 0..list.len() {
-                let m = list.get(i);
-                if self.is_legal_player::<P, _>(m, b, &info) {
-                    list.set(cur, m);
-                    cur += 1;
-                }
-            }
-            list.truncate(cur);
-        }
-        */
     }
 
     pub fn gen_evasion(&self, b: &Board, info: &PositionInfo, list: &mut InlineBuffer, target: BB) {

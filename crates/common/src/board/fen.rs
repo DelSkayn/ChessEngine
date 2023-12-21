@@ -15,10 +15,10 @@ impl fmt::Display for FenError {
 }
 
 impl Board {
-    fn from_fen(fen: &str) -> Result<Self, FenError> {
+    pub fn from_fen_partial(fen: &str) -> Result<(Self, &str), FenError> {
         let mut board = Board::empty();
 
-        let mut iter = fen.chars().peekable();
+        let mut iter = fen.chars();
 
         let mut file = 0u8;
         let mut rank = 0u8;
@@ -112,37 +112,68 @@ impl Board {
             board.state.en_passant = 8;
         }
 
+        let before = iter.as_str();
         let Some(next) = iter.next() else {
-            return Ok(board);
+            return Ok((board, before));
         };
 
         if next != ' ' {
-            return Err(FenError);
+            return Ok((board, before));
         }
 
         let Some(next) = iter.next() else {
-            return Ok(board);
+            return Ok((board, iter.as_str()));
         };
 
         if !next.is_ascii_digit() {
-            return Err(FenError);
+            return Ok((board, before));
         }
 
         board.state.move_clock = next as u8 - b'0';
+
+        let before = iter.as_str();
         let Some(next) = iter.next() else {
-            return Ok(board);
+            return Ok((board, before));
         };
 
         if next.is_ascii_digit() {
             board.state.move_clock *= 10;
             board.state.move_clock = next as u8 - b'0';
         } else if next != ' ' {
-            return Err(FenError);
+            return Ok((board, before));
         }
 
-        // TODO: full move counter
+        let before = iter.as_str();
+        let Some(next) = iter.next() else {
+            return Ok((board, before));
+        };
 
-        Ok(board)
+        if next != ' ' {
+            return Ok((board, before));
+        }
+
+        let Some(next) = iter.next() else {
+            return Ok((board, before));
+        };
+
+        if !next.is_ascii_digit() {
+            return Ok((board, before));
+        }
+
+        let before = iter.as_str();
+        let Some(next) = iter.next() else {
+            return Ok((board, before));
+        };
+
+        if !next.is_ascii_digit() {
+            return Ok((board, before));
+        }
+
+        Ok((board, iter.as_str()))
+    }
+
+    pub fn from_fen(fen: &str) -> Result<Self, FenError> {
+        Self::from_fen_partial(fen).map(|x| x.0)
     }
 
     pub fn to_fen(&self) -> String {
