@@ -170,6 +170,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.76"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59d2a3357dde987206219e78ecfbbb6e8dad06cbb65292758d3270e6254f7355"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,16 +467,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chess-random"
-version = "0.1.0"
-dependencies = [
- "chess-common",
- "chess-move-gen",
- "chess-uci",
- "rand",
-]
-
-[[package]]
 name = "chess-uci"
 version = "0.1.0"
 dependencies = [
@@ -482,6 +478,7 @@ dependencies = [
 name = "chess-ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chess-common",
  "chess-move-gen",
  "chess-uci",
@@ -877,6 +874,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7268b386296a025e474d5140678f75d6de9493ae55a5d709eeb9dd08149945e1"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "engine-cccp"
+version = "0.1.0"
+dependencies = [
+ "chess-common",
+ "chess-move-gen",
+ "chess-uci",
+]
+
+[[package]]
+name = "engine-first"
+version = "0.1.0"
+dependencies = [
+ "chess-common",
+ "chess-move-gen",
+ "chess-uci",
+]
+
+[[package]]
+name = "engine-last"
+version = "0.1.0"
+dependencies = [
+ "chess-common",
+ "chess-move-gen",
+ "chess-uci",
+]
+
+[[package]]
+name = "engine-random"
+version = "0.1.0"
+dependencies = [
+ "chess-common",
+ "chess-move-gen",
+ "chess-uci",
+ "rand",
 ]
 
 [[package]]

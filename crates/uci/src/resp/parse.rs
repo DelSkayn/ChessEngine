@@ -150,7 +150,7 @@ fn option(i: &str) -> IResult<&str, ResponseOption> {
 #[derive(Clone)]
 enum ScoreOptions {
     Mate(u32),
-    Score(i64),
+    Cp(i64),
     Bound(ResponseBound),
 }
 
@@ -160,10 +160,7 @@ fn score_options(i: &str) -> IResult<&str, ScoreOptions> {
             preceded(tuple((tag("mate"), space1)), u32),
             ScoreOptions::Mate,
         ),
-        map(
-            preceded(tuple((tag("score"), space1)), i64),
-            ScoreOptions::Score,
-        ),
+        map(preceded(tuple((tag("cp"), space1)), i64), ScoreOptions::Cp),
         value(
             ScoreOptions::Bound(ResponseBound::Lowerbound),
             tag("lowerbound"),
@@ -188,7 +185,7 @@ fn score(i: &str) -> IResult<&str, ResponseScore> {
     for o in options {
         match o {
             ScoreOptions::Mate(x) => res.mate = Some(x),
-            ScoreOptions::Score(x) => res.score = Some(x),
+            ScoreOptions::Cp(x) => res.score = Some(x),
             ScoreOptions::Bound(x) => res.bound = x,
         }
     }
@@ -213,6 +210,10 @@ fn resp_info(i: &str) -> IResult<&str, ResponseInfo> {
             preceded(tuple((tag("nodes"), space1)), u64),
             ResponseInfo::Nodes,
         ),
+        map(
+            preceded(tuple((tag("nps"), space1)), u64),
+            ResponseInfo::Nps,
+        ),
         |i| {
             let (i, _) = tag("pv")(i)?;
             let (i, _) = space1(i)?;
@@ -231,6 +232,10 @@ fn resp_info(i: &str) -> IResult<&str, ResponseInfo> {
         map(
             preceded(tuple((tag("currmovenumber"), space1)), u32),
             ResponseInfo::CurrMoveNumber,
+        ),
+        map(
+            preceded(tuple((tag("hashfull"), space1)), u16),
+            ResponseInfo::Hashfull,
         ),
         map(
             preceded(tuple((tag("tbhits"), space1)), u64),

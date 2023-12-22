@@ -1,16 +1,16 @@
+use crate::game::Chess;
+use anyhow::Result;
 use clap::Parser;
 use common::board::Board;
 use ggez::{
     conf::{Backend, WindowMode, WindowSetup},
     ContextBuilder,
 };
-use player::MousePlayer;
+use player::{MousePlayer, Player, UciPlayer};
 use std::{
     env,
     path::{self, PathBuf},
 };
-
-use crate::game::Chess;
 
 mod board;
 mod game;
@@ -34,9 +34,11 @@ struct Args {
     /// Time increment in seconds
     #[arg(short, long)]
     increment: Option<f64>,
+    #[arg(short, long)]
+    pause: Option<f32>,
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<()> {
     let args = Args::parse();
 
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
@@ -48,7 +50,7 @@ fn main() -> Result<(), String> {
     };
 
     let board = if let Some(fen) = args.fen {
-        Board::from_fen(fen.as_str()).map_err(|x| x.to_string())?
+        Board::from_fen(fen.as_str())?
     } else {
         Board::start_position()
     };
@@ -58,15 +60,21 @@ fn main() -> Result<(), String> {
         .window_mode(WindowMode::default().resizable(true))
         .window_setup(WindowSetup::default().title("chess"))
         .backend(Backend::Gl)
-        .build()
-        .map_err(|x| x.to_string())?;
+        .build()?;
 
-    let game = Chess::new(
-        &mut ctx,
-        board,
-        Box::new(MousePlayer::new()),
-        Box::new(MousePlayer::new()),
-    );
+    let white = if let Some(white) = args.white {
+        Box::new(UciPlayer::new(&white)?) as Box<dyn Player>
+    } else {
+        Box::new(MousePlayer::new()) as Box<dyn Player>
+    };
+    let black = if let Some(black) = args.black {
+        Box::new(UciPlayer::new(&black)?) as Box<dyn Player>
+    } else {
+        Box::new(MousePlayer::new()) as Box<dyn Player>
+    };
+
+    let mut game = Chess::new(&mut ctx, board, white, black);
+    game.set_pause(args.pause);
 
     ggez::event::run(ctx, event_loop, game)
 }

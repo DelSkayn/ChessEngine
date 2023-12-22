@@ -161,7 +161,7 @@ pub fn run<E: Engine>() -> Result<(), io::Error> {
             Ok(Some(x)) => x,
             Ok(None) => break,
             Err(EngineError::Parse(x)) => {
-                println!("invalid command: {x}");
+                eprintln!("invalid command: {x}");
                 continue;
             }
             Err(EngineError::Io(e)) => return Err(e),
@@ -223,6 +223,7 @@ pub fn run<E: Engine>() -> Result<(), io::Error> {
 fn read_command() -> Result<Option<Request>, EngineError> {
     let mut buffer = String::new();
     let read = std::io::stdin().read_line(&mut buffer)?;
+    eprintln!("READ: {}", buffer);
     if read == 0 {
         return Ok(None);
     }

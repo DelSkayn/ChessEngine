@@ -26,20 +26,20 @@ pub enum Request {
     Quit,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct GoRequest {
-    searchmoves: Option<Vec<UciMove>>,
-    ponder: bool,
-    wtime: Option<i64>,
-    btime: Option<i64>,
-    winc: Option<i32>,
-    binc: Option<i32>,
-    moves_to_go: Option<u32>,
-    depth: Option<u32>,
-    nodes: Option<u64>,
-    mate: Option<u32>,
-    movetime: Option<u64>,
-    infinite: bool,
+    pub searchmoves: Option<Vec<UciMove>>,
+    pub ponder: bool,
+    pub wtime: Option<i64>,
+    pub btime: Option<i64>,
+    pub winc: Option<i32>,
+    pub binc: Option<i32>,
+    pub moves_to_go: Option<u32>,
+    pub depth: Option<u32>,
+    pub nodes: Option<u64>,
+    pub mate: Option<u32>,
+    pub movetime: Option<u64>,
+    pub infinite: bool,
 }
 
 impl fmt::Display for GoRequest {

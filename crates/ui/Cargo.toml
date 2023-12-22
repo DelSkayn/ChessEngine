@@ -7,6 +7,7 @@ authors = ["Mees Delzenne"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.76"
 clap = { version = "4.4.11", features = ["derive"] }
 common = { version = "0.1.0", path = "../common", package = "chess-common" }
 ggez = "0.9.3"

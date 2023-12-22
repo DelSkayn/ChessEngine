@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crate::{board::RenderBoard, player::Player};
 use common::{board::Board, Player as ChessPlayer};
 use ggez::{
@@ -15,6 +17,11 @@ pub enum PlayedMove {
     Castle,
 }
 
+pub enum State {
+    Playing,
+    Waiting(Instant),
+}
+
 pub struct Chess {
     board: RenderBoard,
     piece_sprite: Image,
@@ -24,6 +31,8 @@ pub struct Chess {
     white: Box<dyn Player>,
     black: Box<dyn Player>,
     set_coords: Option<Rect>,
+    pause: Option<f32>,
+    state: State,
 }
 
 impl Chess {
@@ -47,7 +56,13 @@ impl Chess {
             board,
             black,
             set_coords: None,
+            pause: None,
+            state: State::Playing,
         }
+    }
+
+    pub fn set_pause(&mut self, pause: Option<f32>) {
+        self.pause = pause;
     }
 
     fn white_turn(&self) -> bool {
@@ -57,44 +72,46 @@ impl Chess {
 
 impl EventHandler for Chess {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        match self.play_move {
-            PlayedMove::Didnt => {}
-            PlayedMove::Castle => {
-                self.castle_sound.play(ctx)?;
-                self.play_move = PlayedMove::Didnt
-            }
-            PlayedMove::Move => {
-                println!("MOVE");
-                self.move_sound.play(ctx)?;
-                self.play_move = PlayedMove::Didnt
-            }
-        }
+        match self.state {
+            State::Playing => {
+                if self.play_move == PlayedMove::Didnt {
+                    self.play_move = if self.white_turn() {
+                        self.white.update(&mut self.board)
+                    } else {
+                        self.black.update(&mut self.board)
+                    };
+                }
 
-        self.play_move = if self.white_turn() {
-            self.white.update(&mut self.board)
-        } else {
-            self.black.update(&mut self.board)
-        };
+                if self.play_move != PlayedMove::Didnt {
+                    println!("FEN: {}", self.board.board.to_fen());
+                    if self.white_turn() {
+                        self.white.start_turn(&self.board);
+                    } else {
+                        self.black.start_turn(&self.board);
+                    }
+                }
 
-        if self.play_move != PlayedMove::Didnt {
-            println!("FEN: {}", self.board.board.to_fen());
-            if self.white_turn() {
-                self.white.start_turn(&self.board);
-            } else {
-                self.black.start_turn(&self.board);
-            }
-        }
+                match self.play_move {
+                    PlayedMove::Didnt => {}
+                    PlayedMove::Castle => {
+                        self.castle_sound.play(ctx)?;
+                        self.play_move = PlayedMove::Didnt
+                    }
+                    PlayedMove::Move => {
+                        println!("MOVE");
+                        self.move_sound.play(ctx)?;
+                        self.play_move = PlayedMove::Didnt
+                    }
+                }
 
-        match self.play_move {
-            PlayedMove::Didnt => {}
-            PlayedMove::Castle => {
-                self.castle_sound.play(ctx)?;
-                self.play_move = PlayedMove::Didnt
+                if let Some(pause) = self.pause {
+                    self.state = State::Waiting(Instant::now() + Duration::from_secs_f32(pause))
+                }
             }
-            PlayedMove::Move => {
-                println!("MOVE");
-                self.move_sound.play(ctx)?;
-                self.play_move = PlayedMove::Didnt
+            State::Waiting(x) => {
+                if x < Instant::now() {
+                    self.state = State::Playing
+                }
             }
         }
 

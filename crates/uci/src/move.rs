@@ -41,7 +41,16 @@ impl From<Move> for UciMove {
 
 impl fmt::Display for UciMove {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.from, self.to)
+        write!(f, "{}{}", self.from, self.to)?;
+        if let Some(x) = self.promotion {
+            match x {
+                Promotion::Queen => write!(f, "q")?,
+                Promotion::Knight => write!(f, "k")?,
+                Promotion::Rook => write!(f, "r")?,
+                Promotion::Bishop => write!(f, "b")?,
+            }
+        }
+        Ok(())
     }
 }
 

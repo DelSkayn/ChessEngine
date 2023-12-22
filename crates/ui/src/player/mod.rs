@@ -3,6 +3,9 @@ use common::{Move, Square};
 use ggez::{event::MouseButton, input::keyboard::KeyInput, winit::event::VirtualKeyCode};
 use move_gen::{types::gen_type, InlineBuffer, MoveGenerator};
 
+mod uci;
+pub use uci::UciPlayer;
+
 pub trait Player {
     fn update(&mut self, _board: &mut RenderBoard) -> PlayedMove {
         PlayedMove::Didnt

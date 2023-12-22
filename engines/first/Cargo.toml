@@ -1,13 +1,11 @@
 [package]
-name = "engine-random"
+name = "engine-first"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mees Delzenne"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 common = { version = "0.1.0", path = "../../crates/common", package = "chess-common" }
 move_gen = { version = "0.1.0", path = "../../crates/move_gen", package = "chess-move-gen" }
-rand = "0.8.5"
 uci = { version = "0.1.0", path = "../../crates/uci", package = "chess-uci" }

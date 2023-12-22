@@ -14,6 +14,8 @@ impl fmt::Display for FenError {
     }
 }
 
+impl std::error::Error for FenError {}
+
 impl Board {
     pub fn from_fen_partial(fen: &str) -> Result<(Self, &str), FenError> {
         let mut board = Board::empty();
@@ -132,26 +134,24 @@ impl Board {
         board.state.move_clock = next as u8 - b'0';
 
         let before = iter.as_str();
-        let Some(next) = iter.next() else {
+        let Some(mut next) = iter.next() else {
             return Ok((board, before));
         };
 
         if next.is_ascii_digit() {
             board.state.move_clock *= 10;
             board.state.move_clock = next as u8 - b'0';
-        } else if next != ' ' {
-            return Ok((board, before));
+            let Some(n) = iter.next() else {
+                return Ok((board, before));
+            };
+            next = n;
         }
-
-        let before = iter.as_str();
-        let Some(next) = iter.next() else {
-            return Ok((board, before));
-        };
 
         if next != ' ' {
             return Ok((board, before));
         }
 
+        let before = iter.as_str();
         let Some(next) = iter.next() else {
             return Ok((board, before));
         };
@@ -252,5 +252,18 @@ impl FromStr for Board {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Board::from_fen(s)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::board::Board;
+
+    #[test]
+    fn fen() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        let (board, rem) = Board::from_fen_partial(fen).unwrap();
+        assert_eq!(board, Board::start_position());
+        assert_eq!(rem, "");
     }
 }

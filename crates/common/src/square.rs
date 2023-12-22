@@ -53,7 +53,7 @@ impl Square {
     /// Create a square from its name
     ///
     ///```rust
-    /// # use chess_core::Square;
+    /// # use chess_common::Square;
     ///let s = Square::from_name("a3");
     ///```
     pub fn from_name(name: &str) -> Option<Self> {
