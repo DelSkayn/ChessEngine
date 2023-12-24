@@ -1,0 +1,11 @@
+[package]
+name = "engine-alpha-beta"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+common = { version = "0.1.0", path = "../../crates/common", package = "chess-common" }
+move_gen = { version = "0.1.0", path = "../../crates/move_gen", package = "chess-move-gen" }
+uci = { version = "0.1.0", path = "../../crates/uci", package = "chess-uci" }

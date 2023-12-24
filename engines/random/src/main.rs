@@ -22,16 +22,6 @@ impl Engine for RandomEngine {
         }
     }
 
-    fn options(&self) -> std::collections::HashMap<String, uci::resp::OptionKind> {
-        std::collections::HashMap::new()
-    }
-
-    fn set_option(&mut self, _name: &str, _value: Option<uci::req::OptionValue>) -> bool {
-        true
-    }
-
-    fn new_game(&mut self) {}
-
     fn position(&mut self, board: Board, moves: &[uci::UciMove]) {
         self.position = board;
 

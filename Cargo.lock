@@ -877,6 +877,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "engine-alpha-beta"
+version = "0.1.0"
+dependencies = [
+ "chess-common",
+ "chess-move-gen",
+ "chess-uci",
+]
+
+[[package]]
 name = "engine-cccp"
 version = "0.1.0"
 dependencies = [

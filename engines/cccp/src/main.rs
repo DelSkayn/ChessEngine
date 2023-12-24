@@ -11,7 +11,7 @@ pub struct CCCPEngine {
 }
 
 impl Engine for CCCPEngine {
-    const NAME: &'static str = concat!("First Engine ", env!("CARGO_PKG_VERSION"));
+    const NAME: &'static str = concat!("CCCP Engine ", env!("CARGO_PKG_VERSION"));
     const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
 
     fn new() -> Self {
@@ -20,16 +20,6 @@ impl Engine for CCCPEngine {
             position: Board::start_position(),
         }
     }
-
-    fn options(&self) -> std::collections::HashMap<String, uci::resp::OptionKind> {
-        std::collections::HashMap::new()
-    }
-
-    fn set_option(&mut self, _name: &str, _value: Option<uci::req::OptionValue>) -> bool {
-        true
-    }
-
-    fn new_game(&mut self) {}
 
     fn position(&mut self, board: Board, moves: &[uci::UciMove]) {
         self.position = board;
