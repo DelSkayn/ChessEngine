@@ -38,6 +38,9 @@ fn main() {
                     println!("move: {m}");
                 }
             }
+            "h" => {
+                println!("hash: {}", board.hash);
+            }
             "l" => {
                 for m in buffer.iter() {
                     println!("move: {m}");

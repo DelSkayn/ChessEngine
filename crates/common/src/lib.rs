@@ -2,6 +2,7 @@ pub mod array;
 pub mod bb;
 pub mod board;
 pub mod extra_state;
+pub mod hash;
 pub mod misc;
 pub mod r#move;
 pub mod piece;

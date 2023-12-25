@@ -23,7 +23,7 @@ impl<T> BoardArray<T> {
 }
 
 impl<T: Copy> BoardArray<T> {
-    pub fn new(t: T) -> Self {
+    pub const fn new(t: T) -> Self {
         BoardArray([t; 64])
     }
 }
@@ -83,7 +83,7 @@ impl<T: Copy> IndexMut<Direction> for DirectionArray<T> {
 pub struct PieceArray<T>([T; 12]);
 
 impl<T: Copy> PieceArray<T> {
-    pub fn new(t: T) -> Self {
+    pub const fn new(t: T) -> Self {
         PieceArray([t; 12])
     }
 }

@@ -9,6 +9,27 @@ pub use tables::Tables;
 
 #[cfg(test)]
 mod test {
+
+    struct Dropper<F: FnOnce()>(Option<F>);
+
+    impl<F: FnOnce()> Dropper<F> {
+        fn new(f: F) -> Self {
+            Dropper(Some(f))
+        }
+
+        fn forget(&mut self) {
+            self.0.take();
+        }
+    }
+
+    impl<F: FnOnce()> Drop for Dropper<F> {
+        fn drop(&mut self) {
+            if let Some(f) = self.0.take() {
+                f()
+            }
+        }
+    }
+
     use common::board::Board;
 
     use crate::types::gen_type;
@@ -31,11 +52,18 @@ mod test {
             let m = buffer.get(i).unwrap();
             let last = *count;
             let m = b.make_move(m);
+            let mut dropper = Dropper::new(|| {
+                println!("move : {}", m.mov);
+            });
             perft(gen, b, depth - 1, count, false);
+            dropper.forget();
             if root {
-                println!("nodes after '{}':{}", m.mov, *count - last);
+                println!("nodes after '{}':{} @ depth {depth}", m.mov, *count - last);
             }
             b.unmake_move(m);
+            if root {
+                assert!(b.is_valid());
+            }
         }
     }
 

@@ -18,6 +18,12 @@ impl std::error::Error for FenError {}
 
 impl Board {
     pub fn from_fen_partial(fen: &str) -> Result<(Self, &str), FenError> {
+        let (mut this, str) = Self::from_fen_partial_inner(fen)?;
+        this.hash = this.init_hash();
+        Ok((this, str))
+    }
+
+    fn from_fen_partial_inner(fen: &str) -> Result<(Self, &str), FenError> {
         let mut board = Board::empty();
 
         let mut iter = fen.chars();

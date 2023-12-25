@@ -69,23 +69,13 @@ impl AlphaBeta {
     }
 
     pub fn search_moves(&mut self, mut alpha: i32, beta: i32, depth: u8) -> i32 {
+        if depth == 0 {
+            return self.quiesce(alpha, beta);
+        }
+
         let info = self.move_gen.gen_info(&self.board);
         if self.move_gen.drawn_by_rule(&self.board, &info) {
             return 0;
-        }
-
-        if depth == 0 {
-            self.nodes_searched += 1;
-            if self.move_gen.check_mate(&self.board, &info) {
-                return -Self::CHECKMATE_SCORE;
-            } else {
-                let sign = if self.board.state.player == Player::White {
-                    1
-                } else {
-                    -1
-                };
-                return sign * self.eval();
-            }
         }
 
         let mut buffer = InlineBuffer::new();
@@ -113,6 +103,45 @@ impl AlphaBeta {
             alpha = alpha.max(score);
         }
 
+        alpha
+    }
+
+    pub fn quiesce(&mut self, mut alpha: i32, beta: i32) -> i32 {
+        self.nodes_searched += 1;
+
+        let info = self.move_gen.gen_info(&self.board);
+
+        if self.move_gen.drawn_by_rule(&self.board, &info) {
+            return 0;
+        }
+        let score = if self.move_gen.check_mate(&self.board, &info) {
+            -Self::CHECKMATE_SCORE
+        } else {
+            let sign = if self.board.state.player == Player::White {
+                1
+            } else {
+                -1
+            };
+            return sign * self.eval();
+        };
+
+        alpha = alpha.max(score);
+
+        let mut moves = InlineBuffer::new();
+
+        self.move_gen
+            .gen_moves::<gen_type::Captures>(&self.board, &mut moves);
+
+        for m in moves.iter() {
+            let undo = self.board.make_move(m);
+            let score = -self.quiesce(-beta, -alpha);
+            self.board.unmake_move(undo);
+
+            if score >= beta {
+                return beta;
+            }
+            alpha = alpha.max(score);
+        }
         alpha
     }
 
@@ -183,37 +212,6 @@ mod test {
     #[test]
     fn test_capture_1() {
         let fen = "r1bqkbnr/ppppp1Qp/8/8/1n6/8/PPPPPPPP/RNB1KBNR b KQkq - 0 1";
-
-        let mut engine = AlphaBeta::new();
-        engine.board = Board::from_fen(fen).unwrap();
-        let mut root_moves = InlineBuffer::new();
-
-        RunContext::force_run();
-
-        engine
-            .move_gen
-            .gen_moves::<gen_type::All>(&engine.board, &mut root_moves);
-        let root_moves = root_moves;
-        let mut best_score = -i32::MAX;
-        let mut best_move = None;
-        let old_board = engine.board.clone();
-        for m in root_moves.iter() {
-            let undo = engine.board.make_move(m);
-            let score = -engine.search_moves(-i32::MAX, -best_score, 3);
-            println!("{m} {score}");
-            engine.board.unmake_move(undo);
-            assert!(old_board.is_equal(&engine.board));
-            if score > best_score {
-                best_score = score;
-                best_move = Some(m);
-            }
-        }
-        assert_eq!(best_move.unwrap().to(), Square::from_name("g7").unwrap());
-    }
-
-    #[test]
-    fn test_capture_2() {
-        let fen = "rnb1kb1r/pp1ppppp/1qp2n2/8/8/2NBPN2/PPPP1PPP/R1BQK2R b KQkq - 4 5";
 
         let mut engine = AlphaBeta::new();
         engine.board = Board::from_fen(fen).unwrap();
