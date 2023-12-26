@@ -1,22 +1,30 @@
 use common::{Move, Player};
 use move_gen::{types::gen_type, InlineBuffer};
 use std::time::{Duration, Instant};
-use uci::{engine::RunContext, req::GoRequest};
+use uci::{
+    engine::RunContext,
+    req::GoRequest,
+    resp::{ResponseBound, ResponseInfo, ResponseScore},
+};
 
 use super::AlphaBeta;
 
 impl AlphaBeta {
     pub const CHECKMATE_SCORE: i32 = i32::MAX - 1000;
 
-    pub fn search(&mut self, settings: &GoRequest, _context: RunContext<'_>) -> Move {
+    pub fn search(&mut self, settings: &GoRequest, ctx: RunContext<'_>) -> Move {
         self.nodes_searched = 0;
         let search_start = Instant::now();
-        let deadline = Self::deadline(&search_start, settings);
+        let deadline = self.deadline(&search_start, settings);
 
         let mut root_moves = InlineBuffer::new();
         self.move_gen
             .gen_moves::<gen_type::All>(&self.board, &mut root_moves);
         let root_moves = root_moves;
+
+        if root_moves.is_empty() {
+            return Move::NULL;
+        }
 
         let mut depth = 0;
         let mut total_best_move = None;
@@ -30,7 +38,9 @@ impl AlphaBeta {
 
             for m in root_moves.iter() {
                 let undo = self.board.make_move(m);
+                self.moves_played_hash.push(self.board.hash);
                 let score = -self.search_moves(-i32::MAX, -best_score, depth);
+                self.moves_played_hash.pop();
                 self.board.unmake_move(undo);
                 if score > best_score {
                     best_move = Some(m);
@@ -42,23 +52,33 @@ impl AlphaBeta {
                 break;
             }
 
+            let best_move = best_move.unwrap();
+
             eprintln!(
-                "score: {best_score}, move {}, nodes {}",
-                best_move.unwrap(),
+                "score: {}, move {}, nodes {}",
+                self.score_sign() * best_score,
+                best_move,
                 self.nodes_searched
             );
 
-            total_best_move = best_move;
+            ctx.info(ResponseInfo::Nodes(self.nodes_searched));
+            ctx.info(ResponseInfo::Depth(depth.into()));
+            ctx.info(ResponseInfo::CurrMove(best_move.into()));
+            ctx.info(ResponseInfo::Score(ResponseScore {
+                mate: None,
+                cp: Some((self.score_sign() * best_score) as i64),
+                bound: ResponseBound::Exact,
+            }));
+
+            total_best_move = Some(best_move);
 
             if best_score.abs() == Self::CHECKMATE_SCORE {
                 break;
             }
 
-            let elapsed = iteration_start.elapsed();
-
             // if the current iteration took more time than is left we can assume we don't can't
             // finish the next iterator since it most likely takes longer.
-            if Instant::now() + elapsed > deadline {
+            if Instant::now() + iteration_start.elapsed() > deadline {
                 break;
             }
 
@@ -69,18 +89,24 @@ impl AlphaBeta {
     }
 
     pub fn search_moves(&mut self, mut alpha: i32, beta: i32, depth: u8) -> i32 {
+        if self.did_repeat() {
+            return self.score_sign() * self.contempt;
+        }
+
         if depth == 0 {
             return self.quiesce(alpha, beta);
         }
 
         let info = self.move_gen.gen_info(&self.board);
+
         if self.move_gen.drawn_by_rule(&self.board, &info) {
-            return 0;
+            return self.contempt;
         }
 
         let mut buffer = InlineBuffer::new();
         self.move_gen
             .gen_moves::<gen_type::All>(&self.board, &mut buffer);
+        let buffer = buffer;
 
         if buffer.is_empty() {
             if self.move_gen.checked_king(&self.board, &info) {
@@ -95,7 +121,9 @@ impl AlphaBeta {
 
         for m in buffer.iter() {
             let undo = self.board.make_move(m);
+            self.moves_played_hash.push(self.board.hash);
             let score = -self.search_moves(-beta, -alpha, depth - 1);
+            self.moves_played_hash.pop();
             self.board.unmake_move(undo);
             if score >= beta {
                 return beta;
@@ -111,26 +139,18 @@ impl AlphaBeta {
 
         let info = self.move_gen.gen_info(&self.board);
 
-        if self.move_gen.drawn_by_rule(&self.board, &info) {
-            return 0;
-        }
         let score = if self.move_gen.check_mate(&self.board, &info) {
             -Self::CHECKMATE_SCORE
         } else {
-            let sign = if self.board.state.player == Player::White {
-                1
-            } else {
-                -1
-            };
-            return sign * self.eval();
+            return self.score_sign() * self.eval();
         };
 
         alpha = alpha.max(score);
 
         let mut moves = InlineBuffer::new();
-
         self.move_gen
             .gen_moves::<gen_type::Captures>(&self.board, &mut moves);
+        let moves = moves;
 
         for m in moves.iter() {
             let undo = self.board.make_move(m);
@@ -145,13 +165,50 @@ impl AlphaBeta {
         alpha
     }
 
-    fn deadline(start: &Instant, settings: &GoRequest) -> Instant {
+    fn score_sign(&self) -> i32 {
+        if self.board.state.player == Player::White {
+            1
+        } else {
+            -1
+        }
+    }
+
+    fn did_repeat(&mut self) -> bool {
+        for i in (2..self.board.state.move_clock).step_by(2) {
+            if self.board.hash == self.moves_played_hash[i as usize] {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn deadline(&self, start: &Instant, settings: &GoRequest) -> Instant {
         if settings.infinite {
             return *start + Duration::from_secs(60 * 60 * 24 * 356);
         }
+
         if let Some(time) = settings.movetime {
             return *start + Duration::from_millis(time);
         }
+
+        if let Some(wtime) = settings.wtime {
+            let inc = settings.winc.unwrap_or(0) as i64;
+
+            if self.board.state.player == Player::White {
+                let time = (wtime / 20) + inc;
+                return *start + Duration::from_millis(time.max(0) as u64);
+            }
+        }
+
+        if let Some(btime) = settings.btime {
+            let inc = settings.binc.unwrap_or(0) as i64;
+
+            if self.board.state.player == Player::Black {
+                let time = (btime / 20) + inc;
+                return *start + Duration::from_millis(time.max(0) as u64);
+            }
+        }
+
         *start + Duration::from_secs(60 * 60 * 24 * 356)
     }
 }

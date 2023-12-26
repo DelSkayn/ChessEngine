@@ -179,13 +179,13 @@ fn score(i: &str) -> IResult<&str, ResponseScore> {
     let (i, options) = separated_list1(space1, score_options)(i)?;
     let mut res = ResponseScore {
         mate: None,
-        score: None,
+        cp: None,
         bound: ResponseBound::Exact,
     };
     for o in options {
         match o {
             ScoreOptions::Mate(x) => res.mate = Some(x),
-            ScoreOptions::Cp(x) => res.score = Some(x),
+            ScoreOptions::Cp(x) => res.cp = Some(x),
             ScoreOptions::Bound(x) => res.bound = x,
         }
     }

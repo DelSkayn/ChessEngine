@@ -14,14 +14,19 @@ pub struct AlphaBeta {
     move_gen: MoveGenerator,
     board: Board,
     nodes_searched: u64,
+    moves_played_hash: Vec<u64>,
+    contempt: i32,
 }
 
 impl AlphaBeta {
     pub fn new() -> Self {
+        let board = Board::start_position();
         AlphaBeta {
             move_gen: MoveGenerator::new(),
-            board: Board::start_position(),
             nodes_searched: 0,
+            moves_played_hash: vec![board.hash],
+            board,
+            contempt: 0,
         }
     }
 }
@@ -42,6 +47,8 @@ impl Engine for AlphaBeta {
 
     fn position(&mut self, board: Board, moves: &[uci::UciMove]) {
         self.board = board;
+        self.moves_played_hash.clear();
+        self.moves_played_hash.push(self.board.hash);
         for m in moves {
             let mut moves = InlineBuffer::new();
             self.move_gen
@@ -50,6 +57,7 @@ impl Engine for AlphaBeta {
                 break;
             };
             self.board.make_move(m);
+            self.moves_played_hash.push(self.board.hash);
         }
     }
 

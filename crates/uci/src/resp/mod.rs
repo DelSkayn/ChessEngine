@@ -172,9 +172,9 @@ impl fmt::Display for ResponseInfo {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ResponseScore {
-    mate: Option<u32>,
-    score: Option<i64>,
-    bound: ResponseBound,
+    pub mate: Option<u32>,
+    pub cp: Option<i64>,
+    pub bound: ResponseBound,
 }
 
 impl fmt::Display for ResponseScore {
@@ -185,12 +185,12 @@ impl fmt::Display for ResponseScore {
             write!(f, "mate {m}")?;
         }
 
-        if let Some(s) = self.score {
+        if let Some(s) = self.cp {
             if wrote {
                 write!(f, " ")?;
             }
             wrote = true;
-            write!(f, "score {s}")?;
+            write!(f, "cp {s}")?;
         }
         match self.bound {
             ResponseBound::Exact => {}
