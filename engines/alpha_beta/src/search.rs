@@ -1,6 +1,9 @@
 use common::{Move, Player};
 use move_gen::{types::gen_type, InlineBuffer};
-use std::time::{Duration, Instant};
+use std::{
+    intrinsics::breakpoint,
+    time::{Duration, Instant},
+};
 use uci::{
     engine::RunContext,
     req::GoRequest,
@@ -38,10 +41,16 @@ impl AlphaBeta {
 
             for m in root_moves.iter() {
                 let undo = self.board.make_move(m);
-                self.moves_played_hash.push(self.board.hash);
-                let score = -self.search_moves(-i32::MAX, -best_score, depth);
-                self.moves_played_hash.pop();
+                let score = if self.would_repeat(self.board.hash) {
+                    self.score_sign() * self.contempt
+                } else {
+                    self.moves_played_hash.push(self.board.hash);
+                    let score = -self.search_moves(-i32::MAX, -best_score, depth);
+                    self.moves_played_hash.pop();
+                    score
+                };
                 self.board.unmake_move(undo);
+                //eprintln!("{m} = {score} hash {}", self.board.hash);
                 if score > best_score {
                     best_move = Some(m);
                     best_score = score;
@@ -82,6 +91,9 @@ impl AlphaBeta {
                 break;
             }
 
+            if depth == 255 {
+                break;
+            }
             depth += 1;
         }
 
@@ -89,10 +101,6 @@ impl AlphaBeta {
     }
 
     pub fn search_moves(&mut self, mut alpha: i32, beta: i32, depth: u8) -> i32 {
-        if self.did_repeat() {
-            return self.score_sign() * self.contempt;
-        }
-
         if depth == 0 {
             return self.quiesce(alpha, beta);
         }
@@ -121,9 +129,14 @@ impl AlphaBeta {
 
         for m in buffer.iter() {
             let undo = self.board.make_move(m);
-            self.moves_played_hash.push(self.board.hash);
-            let score = -self.search_moves(-beta, -alpha, depth - 1);
-            self.moves_played_hash.pop();
+            let score = if self.would_repeat(self.board.hash) {
+                self.score_sign() * self.contempt
+            } else {
+                self.moves_played_hash.push(self.board.hash);
+                let score = -self.search_moves(-beta, -alpha, depth - 1);
+                self.moves_played_hash.pop();
+                score
+            };
             self.board.unmake_move(undo);
             if score >= beta {
                 return beta;
@@ -142,7 +155,7 @@ impl AlphaBeta {
         let score = if self.move_gen.check_mate(&self.board, &info) {
             -Self::CHECKMATE_SCORE
         } else {
-            return self.score_sign() * self.eval();
+            self.score_sign() * self.eval()
         };
 
         alpha = alpha.max(score);
@@ -173,13 +186,14 @@ impl AlphaBeta {
         }
     }
 
-    fn did_repeat(&mut self) -> bool {
-        for i in (2..self.board.state.move_clock).step_by(2) {
-            if self.board.hash == self.moves_played_hash[i as usize] {
-                return true;
-            }
-        }
-        false
+    fn would_repeat(&mut self, hash: u64) -> bool {
+        self.moves_played_hash
+            .iter()
+            .rev()
+            .take(self.board.state.move_clock as usize)
+            .skip(1)
+            .step_by(2)
+            .any(|x| *x == hash)
     }
 
     fn deadline(&self, start: &Instant, settings: &GoRequest) -> Instant {
@@ -216,7 +230,8 @@ impl AlphaBeta {
 #[cfg(test)]
 mod test {
     use super::*;
-    use common::{board::Board, Square};
+    use common::{board::Board, Promotion, Square};
+    use uci::engine::Engine;
 
     #[test]
     fn test_checkmate() {
@@ -295,5 +310,50 @@ mod test {
             }
         }
         assert_eq!(best_move.unwrap().to(), Square::from_name("g7").unwrap());
+    }
+
+    #[test]
+    fn test_weird_move_1() {
+        let fen = "r1bqk2r/ppppbppp/2n1pn2/1B4B1/3PP3/2P5/PP1N1PPP/R2QK1NR b KQkq - 0 1";
+
+        let mut engine = AlphaBeta::new();
+        engine.board = Board::from_fen(fen).unwrap();
+
+        RunContext::force_run();
+
+        let m = Move::new(
+            Square::from_name("c6").unwrap(),
+            Square::from_name("d4").unwrap(),
+            Move::TYPE_NORMAL,
+            Promotion::Queen,
+        );
+
+        engine.board.make_move(m);
+        let score = -engine.search_moves(-i32::MAX, i32::MAX, 0);
+        println!("{m} {score}");
+
+        assert!(score < 100);
+    }
+
+    #[test]
+    fn test_repetition() {
+        let fen = "8/5N2/R6p/1pk3p1/5p2/5K1r/8/8 w - - 7 8";
+
+        let mut engine = AlphaBeta::new();
+        engine.position(
+            Board::from_fen(fen).unwrap(),
+            &[
+                "f3g4".parse().unwrap(),
+                "h3h4".parse().unwrap(),
+                "g4f3".parse().unwrap(),
+                "h4h3".parse().unwrap(),
+            ],
+        );
+
+        engine.board.make_move(Move::from_name("f3g4").unwrap());
+        assert!(engine.would_repeat(engine.board.hash));
+
+        engine.moves_played_hash.insert(0, 0);
+        assert!(engine.would_repeat(engine.board.hash));
     }
 }

@@ -345,7 +345,7 @@ mod test {
 
     #[test]
     fn iter_all() {
-        let all: Vec<Piece> = dbg!(Piece::all().collect());
+        let all: Vec<Piece> = Piece::all().collect();
         assert_eq!(all.len(), 12);
         assert!(all.contains(&Piece::WhiteKing));
         assert!(all.contains(&Piece::BlackKing));

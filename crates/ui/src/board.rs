@@ -16,7 +16,8 @@ pub struct RenderBoard {
     dragging: Option<Square>,
     mov: Option<(Square, Square)>,
     rect: Rect,
-    pub made_moves: Vec<UnmakeMove>,
+    made_moves: Vec<UnmakeMove>,
+    current_move: usize,
 }
 
 impl RenderBoard {
@@ -29,7 +30,16 @@ impl RenderBoard {
             mov: None,
             rect: Rect::zero(),
             made_moves: Vec::new(),
+            current_move: 0,
         }
+    }
+
+    pub fn board(&self) -> &Board {
+        &self.board
+    }
+
+    pub fn active_moves(&self) -> &[UnmakeMove] {
+        &self.made_moves[0..self.current_move]
     }
 
     pub fn draw(
@@ -204,7 +214,9 @@ impl RenderBoard {
 
     pub fn make_move(&mut self, mov: Move) {
         let m = self.board.make_move(mov);
+        self.made_moves.truncate(self.current_move);
         self.made_moves.push(m);
+        self.current_move += 1;
         self.highlight(mov.from(), mov.to());
         self.possible_moves.clear();
         self.clear_drag();
@@ -227,9 +239,22 @@ impl RenderBoard {
     }
 
     pub fn undo_move(&mut self) {
-        if let Some(x) = self.made_moves.pop() {
-            self.board.unmake_move(x);
+        if self.current_move == 0 {
+            return;
         }
+        self.current_move -= 1;
+        self.board.unmake_move(self.made_moves[self.current_move]);
+        self.clear_highlight();
+        self.clear_select();
+        self.possible_moves.clear();
+    }
+
+    pub fn redo_move(&mut self) {
+        if self.current_move == self.made_moves.len() {
+            return;
+        }
+        self.board.make_move(self.made_moves[self.current_move].mov);
+        self.current_move += 1;
         self.clear_highlight();
         self.clear_select();
         self.possible_moves.clear();

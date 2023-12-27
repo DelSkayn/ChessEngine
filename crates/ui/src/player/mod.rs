@@ -13,6 +13,8 @@ pub trait Player {
 
     fn start_turn(&mut self, _board: &RenderBoard) {}
 
+    fn stop(&mut self) {}
+
     fn key_down(&mut self, _board: &mut RenderBoard, _key: KeyInput) {}
 
     fn mouse_button_down_event(
@@ -80,7 +82,7 @@ impl Player for MousePlayer {
     }
 
     fn key_down(&mut self, board: &mut RenderBoard, key: KeyInput) {
-        if dbg!(key.keycode) == Some(VirtualKeyCode::Left) {
+        if key.keycode == Some(VirtualKeyCode::Left) {
             board.undo_move();
             self.possible_moves.clear();
             self.move_gen

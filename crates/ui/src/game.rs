@@ -7,6 +7,7 @@ use ggez::{
     event::{EventHandler, MouseButton},
     graphics::{Canvas, Color, Image, Rect},
     input::keyboard::KeyInput,
+    winit::event::VirtualKeyCode,
     Context, GameError, GameResult,
 };
 
@@ -17,9 +18,11 @@ pub enum PlayedMove {
     Castle,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum State {
     Playing,
     Waiting(Instant),
+    Paused,
 }
 
 pub struct Chess {
@@ -113,6 +116,7 @@ impl EventHandler for Chess {
                     self.state = State::Playing
                 }
             }
+            State::Paused => {}
         }
 
         Ok(())
@@ -137,8 +141,46 @@ impl EventHandler for Chess {
         &mut self,
         _ctx: &mut Context,
         input: KeyInput,
-        _repeat: bool,
+        repeat: bool,
     ) -> Result<(), GameError> {
+        if input.keycode == Some(VirtualKeyCode::P) {
+            if self.state == State::Paused {
+                self.state = State::Playing;
+
+                if self.white_turn() {
+                    self.white.start_turn(&self.board);
+                } else {
+                    self.black.start_turn(&self.board);
+                }
+            } else {
+                self.state = State::Paused;
+
+                if self.white_turn() {
+                    self.white.stop();
+                } else {
+                    self.black.stop();
+                }
+            }
+            return Ok(());
+        }
+
+        if self.state == State::Paused {
+            if repeat {
+                return Ok(());
+            }
+            if input.keycode == Some(VirtualKeyCode::Left)
+                || input.keycode == Some(VirtualKeyCode::U)
+            {
+                self.board.undo_move()
+            }
+            if input.keycode == Some(VirtualKeyCode::Right)
+                || input.keycode == Some(VirtualKeyCode::R)
+            {
+                self.board.redo_move()
+            }
+            return Ok(());
+        }
+
         if self.white_turn() {
             self.white.key_down(&mut self.board, input);
         } else {
@@ -154,6 +196,10 @@ impl EventHandler for Chess {
         x: f32,
         y: f32,
     ) -> Result<(), GameError> {
+        if self.state == State::Paused {
+            return Ok(());
+        }
+
         if self.white_turn() {
             self.white
                 .mouse_button_down_event(button, x, y, &mut self.board);
@@ -198,6 +244,9 @@ impl EventHandler for Chess {
         dx: f32,
         dy: f32,
     ) -> Result<(), GameError> {
+        if self.state == State::Paused {
+            return Ok(());
+        }
         if self.white_turn() {
             self.white.mouse_motion_event(x, y, dx, dy, &mut self.board);
         } else {

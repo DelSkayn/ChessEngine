@@ -130,6 +130,10 @@ impl UciPlayer {
         )
         .unwrap()
     }
+
+    fn stop(&mut self) {
+        writeln!(self.stdin, "{}", uci::Request::Stop).unwrap()
+    }
 }
 
 impl Player for UciPlayer {
@@ -137,7 +141,7 @@ impl Player for UciPlayer {
         while let Ok(x) = self.recv.try_recv() {
             if let uci::Response::BestMove { r#move, .. } = x {
                 println!("RECIEVED MOVE: {move}");
-                let Some(m) = dbg!(r#move).to_move(self.moves.as_slice()) else {
+                let Some(m) = r#move.to_move(self.moves.as_slice()) else {
                     println!("MOVE NOT CORRECT");
                     return PlayedMove::Didnt;
                 };
@@ -165,8 +169,12 @@ impl Player for UciPlayer {
             return;
         }
 
-        self.set_position(&board.board, &board.made_moves);
+        self.set_position(board.board(), board.active_moves());
         self.sync();
         self.go();
+    }
+
+    fn stop(&mut self) {
+        (*self).stop()
     }
 }

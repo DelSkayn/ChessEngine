@@ -6,4 +6,9 @@ members = [
 ]
 
 [profile.release]
-debug = true
+#debug = true
+lto="fat"
+codegen-units=1
+panic="abort"
+strip = "symbols"
+
