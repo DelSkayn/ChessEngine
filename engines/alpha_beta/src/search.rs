@@ -1,9 +1,6 @@
 use common::{Move, Player};
 use move_gen::{types::gen_type, InlineBuffer};
-use std::{
-    intrinsics::breakpoint,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use uci::{
     engine::RunContext,
     req::GoRequest,
@@ -23,7 +20,6 @@ impl AlphaBeta {
         let mut root_moves = InlineBuffer::new();
         self.move_gen
             .gen_moves::<gen_type::All>(&self.board, &mut root_moves);
-        let root_moves = root_moves;
 
         if root_moves.is_empty() {
             return Move::NULL;
@@ -38,8 +34,9 @@ impl AlphaBeta {
 
             let mut best_score = -i32::MAX;
             let mut best_move = None;
+            let mut best_move_idx = None;
 
-            for m in root_moves.iter() {
+            for (idx, m) in root_moves.iter().enumerate() {
                 let undo = self.board.make_move(m);
                 let score = if self.would_repeat(self.board.hash) {
                     self.score_sign() * self.contempt
@@ -49,17 +46,20 @@ impl AlphaBeta {
                     self.moves_played_hash.pop();
                     score
                 };
-                self.board.unmake_move(undo);
                 //eprintln!("{m} = {score} hash {}", self.board.hash);
+                self.board.unmake_move(undo);
                 if score > best_score {
                     best_move = Some(m);
                     best_score = score;
+                    best_move_idx = Some(idx);
                 }
             }
 
             if RunContext::should_stop() {
                 break;
             }
+
+            root_moves.swap(0, best_move_idx.unwrap() as u8);
 
             let best_move = best_move.unwrap();
 

@@ -314,7 +314,7 @@ impl Board {
 
             // TODO: Possibly make branchless.
             reversible = reversible
-                && castle_mask == 0
+                && castle_mask & self.state.castle == 0
                 && !matches!(piece, Piece::WhitePawn | Piece::BlackPawn);
 
             self.hash ^= self.hash_tables.castle_state()[self.state.castle as usize];
