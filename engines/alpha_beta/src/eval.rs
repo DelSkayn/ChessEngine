@@ -101,31 +101,31 @@ impl AlphaBeta {
             - black_king_score;
 
         for rook in self.board.pieces[Piece::WhitePawn].iter() {
-            score += Self::PAWN_TABLE[rook] as i32;
+            score += Self::PAWN_TABLE[rook.flip()] as i32;
         }
         for rook in self.board.pieces[Piece::BlackPawn].iter() {
-            score -= Self::PAWN_TABLE[rook.flip()] as i32;
+            score -= Self::PAWN_TABLE[rook] as i32;
         }
 
         for rook in self.board.pieces[Piece::WhiteBishop].iter() {
-            score += Self::BISHOP_TABLE[rook] as i32;
+            score += Self::BISHOP_TABLE[rook.flip()] as i32;
         }
         for rook in self.board.pieces[Piece::BlackBishop].iter() {
-            score -= Self::BISHOP_TABLE[rook.flip()] as i32;
+            score -= Self::BISHOP_TABLE[rook] as i32;
         }
 
         for rook in self.board.pieces[Piece::WhiteKnight].iter() {
-            score += Self::KNIGHT_TABLE[rook] as i32;
+            score += Self::KNIGHT_TABLE[rook.flip()] as i32;
         }
         for rook in self.board.pieces[Piece::BlackKnight].iter() {
-            score -= Self::KNIGHT_TABLE[rook.flip()] as i32;
+            score -= Self::KNIGHT_TABLE[rook] as i32;
         }
 
         for rook in self.board.pieces[Piece::WhiteRook].iter() {
-            score += Self::ROOK_TABLE[rook] as i32;
+            score += Self::ROOK_TABLE[rook.flip()] as i32;
         }
         for rook in self.board.pieces[Piece::BlackRook].iter() {
-            score -= Self::ROOK_TABLE[rook.flip()] as i32;
+            score -= Self::ROOK_TABLE[rook] as i32;
         }
 
         score
