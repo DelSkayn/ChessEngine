@@ -61,12 +61,18 @@ impl Engine for AlphaBeta {
     }
 
     fn position(&mut self, mut board: Board, moves: &[uci::UciMove]) {
+        let last_moves_count = dbg!(self.moves_played_hash.len()) - 1;
+
         self.moves_played_hash.clear();
         self.moves_played_hash.push(board.hash);
 
         let mut diverges = false;
 
         for (idx, m) in moves.iter().enumerate() {
+            if idx == last_moves_count {
+                diverges = !board.is_equal(&self.board)
+            }
+
             let mut moves = InlineBuffer::new();
             self.move_gen.gen_moves::<gen_type::All>(&board, &mut moves);
             let Some(m) = m.to_move(moves.as_slice()) else {
@@ -75,18 +81,19 @@ impl Engine for AlphaBeta {
             };
             board.make_move(m);
             self.moves_played_hash.push(self.board.hash);
-
-            if idx == self.moves_played_hash.len() - 1 {
-                diverges = !board.is_equal(&self.board)
-            }
-            if idx >= self.moves_played_hash.len() {
-                self.hash.advance_move()
-            }
         }
 
-        if diverges {
+        if moves.len() == last_moves_count {
+            diverges = !board.is_equal(&self.board)
+        }
+
+        if (last_moves_count > moves.len()) || diverges {
             eprintln!("game diverged, reseting hash");
             self.hash.reset();
+        } else {
+            for _ in last_moves_count..moves.len() {
+                self.hash.advance_move()
+            }
         }
 
         self.board = board;

@@ -56,7 +56,7 @@ impl AlphaBeta {
 
                 let expect_time =
                     iteration_start.elapsed() / (idx as u32 + 1) * root_moves.len() as u32;
-                if iteration_start + expect_time > deadline {
+                if iteration_start + expect_time > deadline && depth != 0 {
                     break 'depth_loop;
                 }
 
@@ -84,7 +84,7 @@ impl AlphaBeta {
 
             ctx.info(ResponseInfo::Nodes(self.nodes_searched));
             ctx.info(ResponseInfo::Hashfull(
-                (self.hash.entries() as f64 / self.hash.len() as f64 * 1000.0).max(1000.0) as u16,
+                (self.hash.entries() as f64 / self.hash.len() as f64 * 1000.0).min(1000.0) as u16,
             ));
             ctx.info(ResponseInfo::TbHits(self.hash.hits() as u64));
             ctx.info(ResponseInfo::Depth(depth.into()));

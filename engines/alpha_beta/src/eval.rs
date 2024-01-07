@@ -83,32 +83,32 @@ impl AlphaBeta {
             - black_material_score
             - black_king_score;
 
-        for rook in self.board.pieces[Piece::WhitePawn].iter() {
-            score += Self::PAWN_TABLE[rook] as i32;
+        for pawn in self.board.pieces[Piece::WhitePawn].iter() {
+            score += Self::PAWN_TABLE[pawn.flip()] as i32;
         }
-        for rook in self.board.pieces[Piece::BlackPawn].iter() {
-            score -= Self::PAWN_TABLE[rook.flip()] as i32;
-        }
-
-        for rook in self.board.pieces[Piece::WhiteBishop].iter() {
-            score += Self::BISHOP_TABLE[rook] as i32;
-        }
-        for rook in self.board.pieces[Piece::BlackBishop].iter() {
-            score -= Self::BISHOP_TABLE[rook.flip()] as i32;
+        for pawn in self.board.pieces[Piece::BlackPawn].iter() {
+            score -= Self::PAWN_TABLE[pawn] as i32;
         }
 
-        for rook in self.board.pieces[Piece::WhiteKnight].iter() {
-            score += Self::KNIGHT_TABLE[rook] as i32;
+        for bishop in self.board.pieces[Piece::WhiteBishop].iter() {
+            score += Self::BISHOP_TABLE[bishop.flip()] as i32;
         }
-        for rook in self.board.pieces[Piece::BlackKnight].iter() {
-            score -= Self::KNIGHT_TABLE[rook.flip()] as i32;
+        for bishop in self.board.pieces[Piece::BlackBishop].iter() {
+            score -= Self::BISHOP_TABLE[bishop] as i32;
+        }
+
+        for knight in self.board.pieces[Piece::WhiteKnight].iter() {
+            score += Self::KNIGHT_TABLE[knight.flip()] as i32;
+        }
+        for knight in self.board.pieces[Piece::BlackKnight].iter() {
+            score -= Self::KNIGHT_TABLE[knight] as i32;
         }
 
         for rook in self.board.pieces[Piece::WhiteRook].iter() {
-            score += Self::ROOK_TABLE[rook] as i32;
+            score += Self::ROOK_TABLE[rook.flip()] as i32;
         }
         for rook in self.board.pieces[Piece::BlackRook].iter() {
-            score -= Self::ROOK_TABLE[rook.flip()] as i32;
+            score -= Self::ROOK_TABLE[rook] as i32;
         }
 
         score
