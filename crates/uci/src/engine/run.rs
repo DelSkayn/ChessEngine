@@ -1,4 +1,4 @@
-use super::{Engine, GoInfo, RunContext, STOP};
+use super::{Engine, RunContext, STOP};
 use crate::{
     req::{self, GoRequest, OptionValue},
     resp::{OptionKind, ResponseId, ResponseOption},
@@ -12,7 +12,7 @@ use std::{
     marker::PhantomData,
     sync::{
         atomic::Ordering,
-        mpsc::{self, Receiver, Sender, SyncSender},
+        mpsc::{self, Receiver, SyncSender},
     },
 };
 
@@ -59,7 +59,6 @@ enum EngineCmd {
     },
     Go {
         request: GoRequest,
-        sender: Sender<GoInfo>,
     },
 }
 
@@ -77,30 +76,18 @@ fn engine_thread<E: Engine>(recv: Receiver<EngineCmd>) {
                 let _ = x.send(());
             }
             EngineCmd::Position { board, moves } => engine.position(board, &moves),
-            EngineCmd::Go { request, sender } => {
-                let send_clone = sender.clone();
+            EngineCmd::Go { request } => {
                 let ctx = RunContext {
-                    sender,
                     marker: PhantomData,
                 };
                 let r#move = engine.go(&request, ctx);
-                let _ = send_clone.send(GoInfo::BestMove {
-                    r#move: r#move.r#move.into(),
-                    ponder: r#move.ponder.map(|x| x.into()),
-                });
-            }
-        }
-    }
-}
-
-fn print_thread(recv: Receiver<GoInfo>) {
-    for r in recv.iter() {
-        match r {
-            GoInfo::Info(x) => {
-                println!("{}", Response::Info(vec![x]));
-            }
-            GoInfo::BestMove { r#move, ponder } => {
-                println!("{}", Response::BestMove { r#move, ponder })
+                println!(
+                    "{}",
+                    Response::BestMove {
+                        r#move: r#move.r#move.into(),
+                        ponder: r#move.ponder.map(|x| x.into()),
+                    }
+                )
             }
         }
     }
@@ -157,10 +144,7 @@ pub fn run<E: Engine>() -> Result<(), io::Error> {
                 send.send(EngineCmd::Position { board, moves }).unwrap();
             }
             Request::Go(x) => {
-                let (sender, recv) = mpsc::channel();
-                std::thread::spawn(|| print_thread(recv));
-
-                send.send(EngineCmd::Go { request: x, sender }).unwrap();
+                send.send(EngineCmd::Go { request: x }).unwrap();
                 STOP.store(false, Ordering::Release);
             }
             Request::Stop => {

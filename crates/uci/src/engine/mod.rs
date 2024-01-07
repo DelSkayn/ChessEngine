@@ -1,15 +1,12 @@
 use crate::{
     req::{GoRequest, OptionValue},
     resp::{OptionKind, ResponseInfo},
-    UciMove,
+    Response, UciMove,
 };
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::Sender,
-    },
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 mod run;
@@ -20,16 +17,7 @@ static STOP: AtomicBool = AtomicBool::new(true);
 
 #[derive(Clone)]
 pub struct RunContext<'a> {
-    sender: Sender<GoInfo>,
     marker: PhantomData<&'a ()>,
-}
-
-enum GoInfo {
-    Info(ResponseInfo),
-    BestMove {
-        r#move: UciMove,
-        ponder: Option<UciMove>,
-    },
 }
 
 impl RunContext<'_> {
@@ -42,7 +30,7 @@ impl RunContext<'_> {
     }
 
     pub fn info(&self, info: ResponseInfo) {
-        let _ = self.sender.send(GoInfo::Info(info));
+        println!("{}", Response::Info(vec![info]))
     }
 }
 
