@@ -28,7 +28,7 @@ impl AlphaBeta {
         let mut depth = 0;
         let mut total_best_move = None;
 
-        loop {
+        'depth_loop: loop {
             eprint!("depth: {depth}, ");
             let iteration_start = Instant::now();
 
@@ -48,6 +48,14 @@ impl AlphaBeta {
                 };
                 //eprintln!("{m} = {score} hash {}", self.board.hash);
                 self.board.unmake_move(undo);
+
+                if iteration_start
+                    + (iteration_start.elapsed() / (idx as u32 + 1) * root_moves.len() as u32)
+                    > deadline
+                {
+                    break 'depth_loop;
+                }
+
                 if score > best_score {
                     best_move = Some(m);
                     best_score = score;
@@ -87,7 +95,7 @@ impl AlphaBeta {
 
             // if the current iteration took more time than is left we can assume we don't can't
             // finish the next iterator since it most likely takes longer.
-            if Instant::now() + iteration_start.elapsed() > deadline {
+            if Instant::now() + iteration_start.elapsed() * 2 > deadline {
                 break;
             }
 
