@@ -21,7 +21,9 @@ impl AlphaBeta {
         self.nodes_searched = 0;
         self.hash_collisions = 0;
         let search_start = Instant::now();
-        let deadline = self.deadline(&search_start, settings);
+        let time_allocated = self.time_allocated(settings);
+        eprintln!("searching for {}s", time_allocated.as_secs_f32());
+        let deadline = search_start + time_allocated;
 
         let mut root_moves = InlineBuffer::new();
         self.move_gen
@@ -29,6 +31,15 @@ impl AlphaBeta {
 
         if root_moves.is_empty() {
             return Move::NULL;
+        }
+
+        if let Some(entry) = self.hash.lookup(self.board.hash) {
+            for (idx, m) in root_moves.iter().enumerate() {
+                if m == entry.m {
+                    root_moves.swap(0, idx as u8);
+                    break;
+                }
+            }
         }
 
         let mut depth = 0;
@@ -107,7 +118,7 @@ impl AlphaBeta {
 
             // if the current iteration took more time than is left we can assume we don't can't
             // finish the next iterator since it most likely takes longer.
-            if Instant::now() + iteration_start.elapsed() * 2 > deadline {
+            if Instant::now() + iteration_start.elapsed() * 10 > deadline {
                 break;
             }
 
@@ -116,6 +127,8 @@ impl AlphaBeta {
             }
             depth += 1;
         }
+
+        eprintln!("searched for {}s", search_start.elapsed().as_secs_f32());
 
         total_best_move.unwrap_or(Move::NULL)
     }
@@ -293,34 +306,34 @@ impl AlphaBeta {
             .any(|x| *x == hash)
     }
 
-    fn deadline(&self, start: &Instant, settings: &GoRequest) -> Instant {
+    fn time_allocated(&self, settings: &GoRequest) -> Duration {
         if settings.infinite {
-            return *start + Duration::from_secs(60 * 60 * 24 * 356);
+            return Duration::from_secs(60 * 60 * 24 * 356);
         }
 
         if let Some(time) = settings.movetime {
-            return *start + Duration::from_millis(time);
+            return Duration::from_millis(time);
         }
 
-        if let Some(wtime) = settings.wtime {
-            let inc = settings.winc.unwrap_or(0) as i64;
+        if let Some(wtime) = dbg!(settings.wtime) {
+            let inc = settings.winc.unwrap_or(0) as i64 * 10;
 
             if self.board.state.player == Player::White {
-                let time = (wtime / 20) + inc;
-                return *start + Duration::from_millis(time.max(0) as u64);
+                let time = (wtime + inc) / 10;
+                return Duration::from_millis(time.max(0) as u64);
             }
         }
 
-        if let Some(btime) = settings.btime {
-            let inc = settings.binc.unwrap_or(0) as i64 * 20;
+        if let Some(btime) = dbg!(settings.btime) {
+            let inc = settings.binc.unwrap_or(0) as i64 * 10;
 
             if self.board.state.player == Player::Black {
-                let time = (btime / 20) + inc;
-                return *start + Duration::from_millis(time.max(0) as u64);
+                let time = (btime + inc) / 10;
+                return Duration::from_millis(time.max(0) as u64);
             }
         }
 
-        *start + Duration::from_secs(60 * 60 * 24 * 356)
+        Duration::from_secs(60 * 60 * 24 * 356)
     }
 }
 
