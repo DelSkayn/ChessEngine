@@ -1,7 +1,7 @@
 //! Functions related to the board representation.
 use crate::{
-    hash::HashTables, BoardArray, ExtraState, Move, Piece, PieceArray, Player, Promotion, Square,
-    SquareContent, BB,
+    hash::HashTables, BoardArray, ExtraState, Move, MoveKind, Piece, PieceArray, Player, Promotion,
+    Square, SquareContent, BB,
 };
 use std::{
     fmt::{self, Debug},
@@ -47,6 +47,27 @@ impl Board {
             hash: hash_tables.initial(),
             hash_tables,
         }
+    }
+
+    pub fn from_squares_state(squares: BoardArray<SquareContent>, state: ExtraState) -> Self {
+        let mut pieces = PieceArray::new_array([BB::EMPTY; 12]);
+        for s in 0..64 {
+            let s = Square::new(s);
+            if let Some(p) = squares[s].to_piece() {
+                pieces[p] |= s.to_bb();
+            }
+        }
+
+        let mut board = Board {
+            pieces,
+            squares,
+            state,
+            hash: 0,
+            hash_tables: HashTables::new(),
+        };
+
+        board.hash = board.init_hash();
+        board
     }
 }
 
@@ -184,7 +205,7 @@ impl Board {
         for s in 0..64 {
             let s = Square::new(s);
             if let Some(x) = self.squares[s].to_piece() {
-                if !(self.pieces[x] & BB::square(s)).any() {
+                if !(self.pieces[x] & s.to_bb()).any() {
                     eprintln!("mailbox-bitboard mismatch, Square {} should contain {:?} but bitboard does not:\n{:?}",s,x,self.pieces[x]);
                     res = false;
                 }
@@ -260,16 +281,17 @@ impl Board {
 
         let from = m.from();
         let to = m.to();
-        let ty = m.ty();
+        let ty = m.kind();
 
         // do the stuff which is always required.
         let piece = std::mem::replace(&mut self.squares[from], SquareContent::Empty);
         let Some(piece) = piece.to_piece() else {
-            panic!("tried to move piece which does not exist. On square `{from}`\n{self}\n{self:?}")
+            let fen = self.to_fen();
+            panic!("tried to move piece which does not exist. On square `{from}`\n{self}\n{self:?}\nFEN:{fen}")
         };
 
         let mut taken = std::mem::replace(&mut self.squares[to], piece.into());
-        self.pieces[piece] ^= BB::square(from) | BB::square(to);
+        self.pieces[piece] ^= from.to_bb() | to.to_bb();
         self.hash ^= self.hash_tables.pieces()[piece][from];
         self.hash ^= self.hash_tables.pieces()[piece][to];
 
@@ -284,7 +306,7 @@ impl Board {
         self.state.en_passant = ExtraState::INVALID_ENPASSANT;
         self.hash ^= self.hash_tables.en_passant_state()[self.state.en_passant as usize];
 
-        if ty == Move::TYPE_NORMAL {
+        if ty == MoveKind::Normal {
             if let Some(taken) = taken.to_piece() {
                 self.pieces[taken] &= !BB::square(to);
                 self.hash ^= self.hash_tables.pieces()[taken][to];
@@ -320,7 +342,7 @@ impl Board {
             self.hash ^= self.hash_tables.castle_state()[self.state.castle as usize];
             self.state.castle &= !castle_mask;
             self.hash ^= self.hash_tables.castle_state()[self.state.castle as usize];
-        } else if ty == Move::TYPE_CASTLE {
+        } else if ty == MoveKind::Castle {
             reversible = false;
             match to {
                 Square::C1 => {
@@ -369,7 +391,7 @@ impl Board {
                 }
                 _ => unreachable!(),
             }
-        } else if ty == Move::TYPE_PROMOTION {
+        } else if ty == MoveKind::Promotion {
             reversible = false;
             debug_assert_eq!(piece, Piece::player_pawn(self.state.player));
 
@@ -401,7 +423,7 @@ impl Board {
                 _ => 0,
             };
             self.hash ^= self.hash_tables.castle_state()[self.state.castle as usize];
-        } else if ty == Move::TYPE_EN_PASSANT {
+        } else if ty == MoveKind::EnPassant {
             reversible = false;
             let (taken_sq, taken_piece) = match self.state.player {
                 Player::White => (to - 8i8, Piece::BlackPawn),
@@ -442,7 +464,7 @@ impl Board {
 
         let from = mov.mov.from();
         let to = mov.mov.to();
-        let ty = mov.mov.ty();
+        let ty = mov.mov.kind();
 
         let piece = std::mem::replace(&mut self.squares[to], mov.taken);
         self.squares[from] = piece;
@@ -461,12 +483,12 @@ impl Board {
 
         self.state = mov.state;
 
-        if ty == Move::TYPE_NORMAL {
+        if ty == MoveKind::Normal {
             if let Some(taken) = mov.taken.to_piece() {
                 self.hash ^= self.hash_tables.pieces()[taken][to];
                 self.pieces[taken] |= BB::square(to);
             }
-        } else if ty == Move::TYPE_CASTLE {
+        } else if ty == MoveKind::Castle {
             match to {
                 Square::C1 => {
                     self.squares[Square::D1] = SquareContent::Empty;
@@ -498,7 +520,7 @@ impl Board {
                 }
                 _ => unreachable!(),
             }
-        } else if ty == Move::TYPE_PROMOTION {
+        } else if ty == MoveKind::Promotion {
             if let Some(taken) = mov.taken.to_piece() {
                 self.pieces[taken] |= BB::square(to);
                 self.hash ^= self.hash_tables.pieces()[taken][to];
@@ -512,7 +534,7 @@ impl Board {
 
             self.hash ^= self.hash_tables.pieces()[piece][from];
             self.hash ^= self.hash_tables.pieces()[pawn][from];
-        } else if ty == Move::TYPE_EN_PASSANT {
+        } else if ty == MoveKind::EnPassant {
             let m: i8 = match self.state.player {
                 Player::Black => 8,
                 Player::White => -8,

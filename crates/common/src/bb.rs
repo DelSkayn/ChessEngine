@@ -217,6 +217,12 @@ impl Debug for BB {
     }
 }
 
+impl From<Square> for BB {
+    fn from(value: Square) -> Self {
+        BB::square(value)
+    }
+}
+
 impl BitAndAssign for BB {
     #[inline(always)]
     fn bitand_assign(&mut self, rhs: Self) {
@@ -377,7 +383,7 @@ impl Iterator for BBIter {
 
         let idx = self.0 .0.trailing_zeros();
         let res = Square::new(idx as u8);
-        self.0 ^= BB::square(res);
+        self.0 ^= res.to_bb();
         Some(res)
     }
 }
@@ -394,7 +400,7 @@ impl Iterator for BBIterRev {
 
         let idx = 63 - self.0 .0.leading_zeros();
         let res = Square::new(idx as u8);
-        self.0 ^= BB::square(res);
+        self.0 ^= res.to_bb();
         Some(res)
     }
 }

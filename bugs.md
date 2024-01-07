@@ -3,5 +3,6 @@ repeating.
 
 3r4/2Pk4/1B6/8/3K4/8/8/8 w - - 0 1
 8/1PK5/k7/8/8/8/8/8 w - - 2 3
+8/5P2/8/4K3/8/3k4/8/8 w - - 3 4
 Picks tower instead of queen?
 

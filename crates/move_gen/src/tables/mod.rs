@@ -40,37 +40,37 @@ impl Tables {
         Tables(std::marker::PhantomData)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn rook_attacks(self, sq: Square, occupied: BB) -> BB {
         magic::rook_attacks(sq, occupied)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn bishop_attacks(self, sq: Square, occupied: BB) -> BB {
         magic::bishop_attacks(sq, occupied)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn king_attacks(self, sq: Square) -> BB {
         unsafe { KING_ATTACKS[sq] }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn knight_attacks(self, sq: Square) -> BB {
         unsafe { KNIGHT_ATTACKS[sq] }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn aligned(self, a: Square, b: Square, c: Square) -> bool {
-        unsafe { (LINES[a][b] & BB::square(c)).any() }
+        (self.line(a, b) & BB::square(c)).any()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn line(self, from: Square, to: Square) -> BB {
         unsafe { LINES[from][to] }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn between(self, from: Square, to: Square) -> BB {
         unsafe { BETWEEN[from][to] }
     }

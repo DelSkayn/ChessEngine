@@ -1,7 +1,7 @@
 use core::fmt::{self, Write};
 use std::str::FromStr;
 
-use crate::{ExtraState, Piece, Player, Square, BB};
+use crate::{ExtraState, Piece, Player, Square};
 
 use super::Board;
 
@@ -59,7 +59,7 @@ impl Board {
                     let s = Square::from_file_rank(file, 7 - rank);
                     file += 1;
                     board.squares[s] = p.into();
-                    board.pieces[p] |= BB::square(s);
+                    board.pieces[p] |= s.to_bb();
                 }
             }
         }

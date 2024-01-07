@@ -7,6 +7,7 @@ pub mod misc;
 pub mod r#move;
 pub mod piece;
 pub mod square;
+pub mod util;
 
 pub use array::{BoardArray, DirectionArray, PieceArray};
 pub use bb::BB;

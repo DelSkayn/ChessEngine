@@ -1,5 +1,5 @@
 use crate::{board::RenderBoard, game::PlayedMove};
-use common::{Move, Square};
+use common::{MoveKind, Square};
 use ggez::{event::MouseButton, input::keyboard::KeyInput, winit::event::VirtualKeyCode};
 use move_gen::{types::gen_type, InlineBuffer, MoveGenerator};
 
@@ -154,7 +154,7 @@ impl Player for MousePlayer {
                             board.highlight(from, to);
                             board.make_move(m);
                             assert!(board.board.is_valid(), "{:?}", board.board);
-                            if m.ty() == Move::TYPE_CASTLE {
+                            if m.kind() == MoveKind::Castle {
                                 return PlayedMove::Castle;
                             } else {
                                 return PlayedMove::Move;

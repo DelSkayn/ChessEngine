@@ -1,4 +1,4 @@
-use common::{Move, Player};
+use common::{util::cond_flip, Move, Player};
 use move_gen::{types::gen_type, InlineBuffer};
 use std::time::{Duration, Instant};
 use uci::{
@@ -7,13 +7,19 @@ use uci::{
     resp::{ResponseBound, ResponseInfo, ResponseScore},
 };
 
+use crate::hash_table::Bound;
+
 use super::AlphaBeta;
 
 impl AlphaBeta {
-    pub const CHECKMATE_SCORE: i32 = i32::MAX - 1000;
+    pub const MAX_DEPTH: u8 = 99;
+    pub const CHECKMATE_SCORE: i32 = i16::MAX as i32;
+    pub const INVALID_SCORE: i32 = i32::MAX;
 
     pub fn search(&mut self, settings: &GoRequest, ctx: RunContext<'_>) -> Move {
+        self.hash.reset_hits();
         self.nodes_searched = 0;
+        self.hash_collisions = 0;
         let search_start = Instant::now();
         let deadline = self.deadline(&search_start, settings);
 
@@ -28,7 +34,7 @@ impl AlphaBeta {
         let mut depth = 0;
         let mut total_best_move = None;
 
-        loop {
+        'depth_loop: loop {
             eprint!("depth: {depth}, ");
             let iteration_start = Instant::now();
 
@@ -39,24 +45,30 @@ impl AlphaBeta {
             for (idx, m) in root_moves.iter().enumerate() {
                 let undo = self.board.make_move(m);
                 let score = if self.would_repeat(self.board.hash) {
-                    self.score_sign() * self.contempt
+                    cond_flip(self.contempt, self.board.state.player == Player::Black)
                 } else {
                     self.moves_played_hash.push(self.board.hash);
                     let score = -self.search_moves(-i32::MAX, -best_score, depth);
                     self.moves_played_hash.pop();
                     score
                 };
-                //eprintln!("{m} = {score} hash {}", self.board.hash);
                 self.board.unmake_move(undo);
+
+                let expect_time =
+                    iteration_start.elapsed() / (idx as u32 + 1) * root_moves.len() as u32;
+                if iteration_start + expect_time > deadline {
+                    break 'depth_loop;
+                }
+
+                if score.abs() == Self::INVALID_SCORE {
+                    break 'depth_loop;
+                }
+                //eprintln!("{m} = {score} hash {}", self.board.hash);
                 if score > best_score {
                     best_move = Some(m);
                     best_score = score;
                     best_move_idx = Some(idx);
                 }
-            }
-
-            if RunContext::should_stop() {
-                break;
             }
 
             root_moves.swap(0, best_move_idx.unwrap() as u8);
@@ -65,17 +77,25 @@ impl AlphaBeta {
 
             eprintln!(
                 "score: {}, move {}, nodes {}",
-                self.score_sign() * best_score,
+                cond_flip(best_score, self.board.state.player == Player::Black),
                 best_move,
                 self.nodes_searched
             );
 
             ctx.info(ResponseInfo::Nodes(self.nodes_searched));
+            ctx.info(ResponseInfo::Hashfull(
+                (self.hash.entries() as f64 / self.hash.len() as f64 * 1000.0).max(1000.0) as u16,
+            ));
+            ctx.info(ResponseInfo::TbHits(self.hash.hits() as u64));
             ctx.info(ResponseInfo::Depth(depth.into()));
             ctx.info(ResponseInfo::CurrMove(best_move.into()));
+            ctx.info(ResponseInfo::String(format!(
+                "hash collisions: {}",
+                self.hash_collisions
+            )));
             ctx.info(ResponseInfo::Score(ResponseScore {
                 mate: None,
-                cp: Some((self.score_sign() * best_score) as i64),
+                cp: Some(cond_flip(best_score, self.board.state.player == Player::Black) as i64),
                 bound: ResponseBound::Exact,
             }));
 
@@ -87,11 +107,11 @@ impl AlphaBeta {
 
             // if the current iteration took more time than is left we can assume we don't can't
             // finish the next iterator since it most likely takes longer.
-            if Instant::now() + iteration_start.elapsed() > deadline {
+            if Instant::now() + iteration_start.elapsed() * 2 > deadline {
                 break;
             }
 
-            if depth == 255 {
+            if depth == Self::MAX_DEPTH {
                 break;
             }
             depth += 1;
@@ -105,12 +125,76 @@ impl AlphaBeta {
             return self.quiesce(alpha, beta);
         }
 
+        if RunContext::should_stop() {
+            return Self::INVALID_SCORE;
+        }
+
+        let hash_move = if let Some(x) = self.hash.lookup(self.board.hash) {
+            let hash_depth = self.hash.hash_depth(depth);
+            if x.depth_bound.depth() >= hash_depth {
+                match x.depth_bound.bound() {
+                    Bound::Exact => return x.score.into(),
+                    Bound::Lower => {
+                        // lower bound so there is a score that will be atleast this score.
+                        alpha = alpha.max(x.score.into());
+                        if alpha > beta {
+                            return beta;
+                        }
+                    }
+                    Bound::Upper => {
+                        // upper bound so if the alpha is higher than this score the node won't
+                        // improve the result.
+                        if alpha >= x.score.into() {
+                            return alpha;
+                        }
+                    }
+                }
+            }
+            Some(x.m)
+        } else {
+            None
+        };
+
         let info = self.move_gen.gen_info(&self.board);
 
         if self.move_gen.drawn_by_rule(&self.board, &info) {
             return self.contempt;
         }
 
+        // check hash move first.
+        let mut best_move = Move::INVALID;
+        if let Some(m) = hash_move {
+            if self.move_gen.is_valid(m, &self.board, &info) {
+                let undo = self.board.make_move(m);
+                let score = if self.would_repeat(self.board.hash) {
+                    cond_flip(self.contempt, self.board.state.player == Player::Black)
+                } else {
+                    self.moves_played_hash.push(self.board.hash);
+                    let score = -self.search_moves(-beta, -alpha, depth - 1);
+                    self.moves_played_hash.pop();
+                    score
+                };
+                self.board.unmake_move(undo);
+
+                if score.abs() == Self::INVALID_SCORE {
+                    return Self::INVALID_SCORE;
+                }
+
+                if score >= beta {
+                    self.store_hash_move(score, m, Bound::Lower, depth);
+                    return beta;
+                };
+                if score > alpha {
+                    alpha = score;
+                    best_move = m;
+                }
+            } else {
+                // move wasn't valid, so hash colided with another position
+                self.hash_collisions += 1;
+            }
+        }
+
+        // generate all the valid moves.
         let mut buffer = InlineBuffer::new();
         self.move_gen
             .gen_moves::<gen_type::All>(&self.board, &mut buffer);
@@ -123,14 +207,15 @@ impl AlphaBeta {
             return 0;
         }
 
-        if RunContext::should_stop() {
-            return i32::MAX;
-        }
-
         for m in buffer.iter() {
+            // skip the hash move.
+            if Some(m) == hash_move {
+                continue;
+            }
+
             let undo = self.board.make_move(m);
             let score = if self.would_repeat(self.board.hash) {
-                self.score_sign() * self.contempt
+                cond_flip(self.contempt, self.board.state.player == Player::Black)
             } else {
                 self.moves_played_hash.push(self.board.hash);
                 let score = -self.search_moves(-beta, -alpha, depth - 1);
@@ -138,13 +223,33 @@ impl AlphaBeta {
                 score
             };
             self.board.unmake_move(undo);
+
+            if score.abs() == Self::INVALID_SCORE {
+                return Self::INVALID_SCORE;
+            }
+
             if score >= beta {
+                self.store_hash_move(score, m, Bound::Lower, depth);
                 return beta;
             };
-            alpha = alpha.max(score);
+            if score > alpha {
+                alpha = score;
+                best_move = m;
+            }
+        }
+
+        if best_move != Move::INVALID {
+            self.store_hash_move(alpha, best_move, Bound::Exact, depth);
+        } else {
+            // failed to improve the score, the result is a upper bound.
+            self.store_hash_move(alpha, best_move, Bound::Upper, depth);
         }
 
         alpha
+    }
+
+    fn store_hash_move(&mut self, score: i32, m: Move, bound: Bound, depth: u8) {
+        self.hash.store(self.board.hash, score, m, depth, bound)
     }
 
     pub fn quiesce(&mut self, mut alpha: i32, beta: i32) -> i32 {
@@ -155,7 +260,7 @@ impl AlphaBeta {
         let score = if self.move_gen.check_mate(&self.board, &info) {
             -Self::CHECKMATE_SCORE
         } else {
-            self.score_sign() * self.eval()
+            cond_flip(self.eval(), self.board.state.player == Player::Black)
         };
 
         alpha = alpha.max(score);
@@ -176,14 +281,6 @@ impl AlphaBeta {
             alpha = alpha.max(score);
         }
         alpha
-    }
-
-    fn score_sign(&self) -> i32 {
-        if self.board.state.player == Player::White {
-            1
-        } else {
-            -1
-        }
     }
 
     fn would_repeat(&mut self, hash: u64) -> bool {
@@ -215,7 +312,7 @@ impl AlphaBeta {
         }
 
         if let Some(btime) = settings.btime {
-            let inc = settings.binc.unwrap_or(0) as i64;
+            let inc = settings.binc.unwrap_or(0) as i64 * 20;
 
             if self.board.state.player == Player::Black {
                 let time = (btime / 20) + inc;
@@ -294,6 +391,7 @@ mod test {
         engine
             .move_gen
             .gen_moves::<gen_type::All>(&engine.board, &mut root_moves);
+
         let root_moves = root_moves;
         let mut best_score = -i32::MAX;
         let mut best_move = None;

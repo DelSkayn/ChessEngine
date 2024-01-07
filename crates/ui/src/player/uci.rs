@@ -1,10 +1,10 @@
-use crate::game::PlayedMove;
+use crate::{board::RenderBoard, game::PlayedMove};
 
 use super::Player;
 use anyhow::{ensure, Context, Result};
 use common::{
     board::{Board, UnmakeMove},
-    Move,
+    MoveKind,
 };
 use move_gen::{types::gen_type, InlineBuffer, MoveGenerator};
 use std::{
@@ -119,12 +119,22 @@ impl UciPlayer {
         }
     }
 
-    fn go(&mut self) {
+    fn go(&mut self, board: &RenderBoard) {
+        let movetime = if board.white_time.is_some() {
+            None
+        } else {
+            Some(1000)
+        };
+
         writeln!(
             self.stdin,
             "{}",
             uci::Request::Go(GoRequest {
-                movetime: Some(1000),
+                winc: Some(board.increment.as_millis() as i32),
+                binc: Some(board.increment.as_millis() as i32),
+                wtime: board.white_time.map(|x| x.as_millis() as i64),
+                btime: board.black_time.map(|x| x.as_millis() as i64),
+                movetime,
                 ..Default::default()
             })
         )
@@ -148,7 +158,7 @@ impl Player for UciPlayer {
 
                 board.highlight(m.from(), m.to());
                 board.make_move(m);
-                if m.ty() == Move::TYPE_CASTLE {
+                if m.kind() == MoveKind::Castle {
                     return PlayedMove::Castle;
                 } else {
                     return PlayedMove::Move;
@@ -171,7 +181,7 @@ impl Player for UciPlayer {
 
         self.set_position(board.board(), board.active_moves());
         self.sync();
-        self.go();
+        self.go(board);
     }
 
     fn stop(&mut self) {

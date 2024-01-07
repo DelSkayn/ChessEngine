@@ -35,6 +35,11 @@ impl fmt::Display for Promotion {
 /// A move on the board.
 ///
 /// Encoded as from to with possible extra info regarding promotions, en passants or castles.
+///
+/// Format:
+/// 0:6  from
+/// 6:12 to
+/// 12:14 type
 #[derive(Clone, Copy, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Move(u16);
@@ -109,24 +114,19 @@ impl Move {
     }
 
     #[inline]
-    pub fn ty(self) -> u16 {
-        self.0 & Self::TYPE_MASK
-    }
-
-    #[inline]
     pub fn kind(self) -> MoveKind {
         unsafe { std::mem::transmute(self.0 & Self::TYPE_MASK) }
     }
 
     #[inline]
     pub fn is_double_move(self) -> bool {
-        debug_assert!(self.ty() == Self::TYPE_NORMAL);
+        debug_assert!(self.kind() == MoveKind::Normal);
         self.0 & Self::PROMOTION_MASK != 0
     }
 
     #[inline]
     pub fn promotion_piece(self) -> Promotion {
-        debug_assert_eq!(self.ty(), Self::TYPE_PROMOTION);
+        debug_assert!(self.kind() == MoveKind::Promotion);
         let raw = self.0 & Self::PROMOTION_MASK;
         // Raw should only be a possible value from Promotion enum
         unsafe { mem::transmute::<_, Promotion>(raw) }
@@ -153,12 +153,12 @@ impl fmt::Debug for Move {
         f.debug_struct("Move")
             .field("value", &self.0)
             .field("notation", &format!("{}", self))
-            .field("ty", &(self.ty() >> 12))
+            .field("kind", &self.kind())
             .field("to", &self.to())
             .field("from", &self.from())
             .field(
                 "promotion",
-                &if self.ty() == Self::TYPE_PROMOTION {
+                &if self.kind() == MoveKind::Promotion {
                     Some(self.promotion_piece())
                 } else {
                     None
@@ -174,7 +174,7 @@ impl fmt::Display for Move {
             return write!(f, "INVALID");
         }
 
-        if self.ty() == Self::TYPE_CASTLE {
+        if self.kind() == MoveKind::Castle {
             if self.to() == Square::C1 || self.to() == Square::C8 {
                 return write!(f, "O-O({},{})", self.from(), self.to());
             } else {
@@ -182,7 +182,7 @@ impl fmt::Display for Move {
             }
         }
         write!(f, "{}{}", self.from(), self.to())?;
-        if self.ty() == Self::TYPE_PROMOTION {
+        if self.kind() == MoveKind::Promotion {
             let piece = match self.promotion_piece() {
                 Promotion::Queen => "Q",
                 Promotion::Knight => "K",
@@ -191,7 +191,7 @@ impl fmt::Display for Move {
             };
             return write!(f, "={}", piece);
         }
-        if self.ty() == Self::TYPE_EN_PASSANT {
+        if self.kind() == MoveKind::EnPassant {
             return write!(f, "e.p.");
         }
 

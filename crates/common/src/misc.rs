@@ -1,5 +1,38 @@
 use std::ops;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum WinCause {
+    Timeout,
+    Mate,
+    Disconnect,
+    Other,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum DrawCause {
+    Stalemate,
+    Timeout,
+    FiftyMove,
+    Repetition,
+    Agreement,
+    Material,
+    Disconnect,
+    Other,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Outcome {
+    /// The game was won by a player
+    Won { by: Player, cause: WinCause },
+    /// THe game was drawn
+    Drawn(DrawCause),
+    /// No outcome was determined.
+    None,
+}
+
 /// Enum representing a player.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -42,17 +75,18 @@ impl Player {
 }
 
 /// A direction on the board with the side with the black pieces being north.
+#[repr(i8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Direction {
-    NW = 0,
-    N,
-    NE,
-    E,
-    SE,
-    S,
-    SW,
-    W,
+    NW = 7,
+    N = 8,
+    NE = 9,
+    E = 1,
+    SE = -7,
+    S = -8,
+    SW = -9,
+    W = -1,
 }
 
 impl Direction {
@@ -74,15 +108,6 @@ impl Direction {
     /// Returns the board square index offset of the direction.
     #[inline(always)]
     pub const fn as_offset(self) -> i8 {
-        match self {
-            Direction::NW => 7,
-            Direction::N => 8,
-            Direction::NE => 9,
-            Direction::E => 1,
-            Direction::SE => -7,
-            Direction::S => -8,
-            Direction::SW => -9,
-            Direction::W => -1,
-        }
+        self as i8
     }
 }

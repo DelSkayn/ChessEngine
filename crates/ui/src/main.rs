@@ -10,6 +10,7 @@ use player::{MousePlayer, Player, UciPlayer};
 use std::{
     env,
     path::{self, PathBuf},
+    time::Duration,
 };
 
 mod board;
@@ -75,6 +76,12 @@ fn main() -> Result<()> {
 
     let mut game = Chess::new(&mut ctx, board, white, black);
     game.set_pause(args.pause);
+    if let Some(limit) = args.time {
+        game.set_timelimit(Duration::from_secs_f64(limit * 60.0))
+    }
+    if let Some(increment) = args.increment {
+        game.set_increment(Duration::from_secs_f64(increment))
+    }
 
     ggez::event::run(ctx, event_loop, game)
 }

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use common::{
     board::{Board, UnmakeMove},
     Move, Piece, Square, BB,
@@ -16,8 +18,11 @@ pub struct RenderBoard {
     dragging: Option<Square>,
     mov: Option<(Square, Square)>,
     rect: Rect,
-    made_moves: Vec<UnmakeMove>,
-    current_move: usize,
+    pub made_moves: Vec<UnmakeMove>,
+    pub current_move: usize,
+    pub white_time: Option<Duration>,
+    pub black_time: Option<Duration>,
+    pub increment: Duration,
 }
 
 impl RenderBoard {
@@ -31,6 +36,9 @@ impl RenderBoard {
             rect: Rect::zero(),
             made_moves: Vec::new(),
             current_move: 0,
+            white_time: None,
+            black_time: None,
+            increment: Duration::ZERO,
         }
     }
 
@@ -50,8 +58,8 @@ impl RenderBoard {
         sprite: &Image,
     ) -> GameResult<()> {
         let max_size = within.w.min(within.h);
-        let offset_x = (within.w - max_size).max(0.0) / 2.0;
-        let offset_y = (within.h - max_size).max(0.0) / 2.0;
+        let offset_x = (within.w - max_size).max(0.0) / 2.0 + within.x;
+        let offset_y = (within.h - max_size).max(0.0) / 2.0 + within.y;
         let square_size = max_size / 8.0;
 
         // Draw the board

@@ -12,23 +12,6 @@ impl AlphaBeta {
     const FULL_PIECE_VALUE: i32 =
         Self::QUEEN_VALUE + Self::BISHOP_VALUE * 2 + Self::KNIGHT_VALUE * 2 + Self::ROOK_VALUE * 2;
 
-    /*
-    const PIECE_VALUE: [i32; 12] = [
-        0,
-        0,
-        Self::QUEEN_VALUE,
-        Self::QUEEN_VALUE,
-        Self::BISHOP_VALUE,
-        Self::BISHOP_VALUE,
-        Self::KNIGHT_VALUE,
-        Self::KNIGHT_VALUE,
-        Self::ROOK_VALUE,
-        Self::ROOK_VALUE,
-        Self::PAWN_VALUE,
-        Self::PAWN_VALUE,
-    ];
-    */
-
     const PAWN_TABLE: BoardArray<i8> = BoardArray::new_array([
         0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30, 20, 10, 10, 5,
         5, 10, 27, 27, 10, 5, 5, 0, 0, 0, 25, 25, 0, 0, 0, 5, -5, -10, 0, 0, -10, -5, 5, 5, 10, 10,
@@ -80,8 +63,8 @@ impl AlphaBeta {
             + self.board.pieces[Piece::BlackRook].count() as i32 * Self::ROOK_VALUE
             + self.board.pieces[Piece::BlackQueen].count() as i32 * Self::QUEEN_VALUE;
 
-        let white_king_square = self.board.pieces[Piece::WhiteKing].last_piece();
         // interpolate between two tables depending on the opposite players material score.
+        let white_king_square = self.board.pieces[Piece::WhiteKing].last_piece();
         let max = Self::FULL_PIECE_VALUE.max(black_material_score);
         let white_king_score = (Self::KING_TABLE[white_king_square] as i32 * black_material_score
             + Self::KING_END_TABLE[white_king_square] as i32 * (max - black_material_score))

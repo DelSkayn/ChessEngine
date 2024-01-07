@@ -3,6 +3,8 @@ use std::{
     ops::{Add, Sub},
 };
 
+use crate::BB;
+
 /// A single square of the board
 ///
 /// Index starts with the left bottom side from white's view being index 0
@@ -105,6 +107,11 @@ impl Square {
     #[inline]
     pub const fn flip(self) -> Self {
         Square(63 - self.0)
+    }
+
+    #[inline]
+    pub const fn to_bb(self) -> BB {
+        BB::square(self)
     }
 }
 
