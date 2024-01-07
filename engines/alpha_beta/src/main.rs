@@ -68,9 +68,9 @@ impl Engine for AlphaBeta {
 
         for (idx, m) in moves.iter().enumerate() {
             let mut moves = InlineBuffer::new();
-            self.move_gen
-                .gen_moves::<gen_type::All>(&self.board, &mut moves);
+            self.move_gen.gen_moves::<gen_type::All>(&board, &mut moves);
             let Some(m) = m.to_move(moves.as_slice()) else {
+                eprintln!("move '{}' was not valid! ignoring", m);
                 break;
             };
             board.make_move(m);
