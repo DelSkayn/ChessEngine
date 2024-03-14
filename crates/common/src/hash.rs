@@ -23,7 +23,8 @@ impl HashTables {
     unsafe fn init() {
         use rand::SeedableRng;
 
-        let mut rng = rand::rngs::StdRng::seed_from_u64(9291248438346573197);
+        let seed = 12703236760526253541u64;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
 
         for p in Piece::all() {
             for s in 0..64 {
